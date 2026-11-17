@@ -105,3 +105,25 @@ section.locked{background:#f1f2f6}
 /* 이벤트 카드 */
 .gimg{width:100%;height:auto;display:block;border-radius:10px;margin-top:6px;cursor:zoom-in}
 .rwl{list-style:disc}.hist{list-style:none;padding-left:0}.hist li{padding:6px 0;border-bottom:1px solid #e6e9f2}
+
+/* 인증 단계 / 프로필 이미지 */
+h4.stg{margin:14px 0 4px;font-size:15px}
+h4.stg small{color:#667;font-weight:normal}
+.profbox{display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #e6e9f2}
+.pimg{width:190px;height:190px;border-radius:18px;box-shadow:0 2px 8px rgba(0,0,0,.28);cursor:zoom-in;flex:none}
+.dlbtn{display:block;margin-top:6px;padding:12px 14px;border-radius:10px;background:var(--main,#2b3a67);color:#fff;text-decoration:none;font-weight:bold;font-size:14px}
+
+.dia{margin:2px 0;font-weight:bold;color:#2b6fd4}
+
+/* 귀속 병사 순위 */
+.sechead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.sechead h3{margin:0;font-size:17px;white-space:nowrap}
+.rkbtn{padding:8px 11px;border-radius:11px;background:var(--main,#2b3a67);color:#fff;text-decoration:none;font-weight:bold;font-size:13px;white-space:nowrap}
+.rkcard h3{margin:0 0 8px;font-size:19px}
+.rkrow{display:flex;align-items:center;gap:10px;padding:9px 0;text-decoration:none;border-top:1px solid #eef0f6}
+.rkm{font-size:22px;width:30px;text-align:center}
+.rkn{flex:1;color:#2f6fe0;font-weight:bold;text-decoration:underline}
+.rkn small{color:#8a8f98;font-weight:normal}
+.rkp{color:#667}
+.hlwrap{border-radius:14px;outline:4px solid #ff9f43;outline-offset:3px;padding:0 0 0;position:relative}
+.hltag{background:#ff9f43;color:#3a2400;font-weight:bold;font-size:13px;text-align:center;padding:6px 4px;border-radius:10px 10px 0 0;margin:-4px -4px 6px}
