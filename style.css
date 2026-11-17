@@ -101,3 +101,7 @@ section.locked{background:#f1f2f6}
 .vcard h2{font-size:17px;margin:0 0 4px}
 .hl{margin:6px 0 0;padding-left:18px;color:#444;font-size:13px}
 .nm2{font-size:17px}
+
+/* 이벤트 카드 */
+.gimg{width:100%;height:auto;display:block;border-radius:10px;margin-top:6px;cursor:zoom-in}
+.rwl{list-style:disc}.hist{list-style:none;padding-left:0}.hist li{padding:6px 0;border-bottom:1px solid #e6e9f2}
