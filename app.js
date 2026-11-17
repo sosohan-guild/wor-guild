@@ -63,6 +63,7 @@ async function tryUnlock(pass){
   try { await decryptWith(key, S.crypto.check); } catch(e){ return false; }
   for(var i=0;i<S.members.length;i++){ var m = S.members[i]; if(m.enc) m.priv = await decryptWith(key, m.enc); }
   if(S.scout) S.scoutData = await decryptWith(key, S.scout);
+  if(S.rank) S.rankData = await decryptWith(key, S.rank);
   KEY = key; UNLOCKED = true; return true;
 }
 function lockBar(){
@@ -217,6 +218,21 @@ function scoutPage(id){
   app.innerHTML = h;
 }
 
+/* ---------- 귀속 병사 순위 페이지 (길드원 암호로만 열림) ---------- */
+function rankPage(){
+  titleEl.textContent = '귀속 병사 순위'; backEl.hidden = false; backEl.href = '#/members';
+  if(!S.rankData){ app.innerHTML = lockBar()+'<section class="locked"><h3>🔒 길드원 전용</h3><p class="next">순위는 길드원 암호를 입력하면 볼 수 있습니다.</p></section>'; return; }
+  var mic = {1:'🥇',2:'🥈',3:'🥉'}, h = lockBar();
+  S.rankData.forEach(function(g){
+    h += '<section class="rkcard"><h3>'+esc(g.hero)+'</h3>';
+    g.rows.slice().sort(function(x,y){ return (x.medal-y.medal) || (y.power-x.power); }).forEach(function(r){
+      h += '<a class="rkrow" href="#/m/'+esc(r.id)+'?hero='+encodeURIComponent(g.hero)+'"><span class="rkm">'+mic[r.medal]+'</span><span class="rkn">'+esc(r.name)+(r.main?' <small>('+esc(r.main)+')</small>':'')+'</span><span class="rkp">'+Number(r.power).toLocaleString('en-US')+'</span></a>';
+    });
+    h += '</section>';
+  });
+  app.innerHTML = h;
+}
+
 function postPage(id){
   var p = S.posts.filter(function(x){return x.id===id;})[0];
   if(!p){ location.hash='#/'; return; }
@@ -244,7 +260,8 @@ function membersPage(){
   });
   app.innerHTML = h;
 }
-function memberPage(id){
+function memberPage(id, qs){
+  var hero = null; if(qs){ var mq = qs.match(/hero=([^&]+)/); if(mq) hero = decodeURIComponent(mq[1]); }
   var m = S.members.filter(function(x){return x.id===id;})[0];
   if(!m){ location.hash='#/members'; return; }
   titleEl.textContent = '길드원'; backEl.hidden = false; backEl.href = '#/members';
@@ -258,10 +275,20 @@ function memberPage(id){
   if(person){ h += '<div class="atabs">'; person.accounts.forEach(function(a){ var am = MBY[a]; if(!am) return; h += '<a class="atab'+(a===m.id?' on':'')+'" href="#/m/'+esc(a)+'">'+(a===person.main?'★ ':'')+esc(am.name)+'</a>'; }); h += '</div>'; }
   h += '<div class="pcard"><div class="pic">'+iconHtml(memberIcon(m))+'</div><div>'+nameHtml(m)+'<div class="pmeta"><span class="gbadge" style="background:'+esc(g.color)+'">'+esc(g.name)+'</span> '+esc(LEAD[m.role]?m.role:'길드원')+(m.joined?' · 가입 '+esc(m.joined):'')+(person&&gm!==m?' · 등급은 대표 계정 <b>'+esc(gm.name)+'</b> 기준':'')+'</div></div></div>';
 
-  if(!locked && data.cardsFile) h += '<section><h3>영웅 카드</h3><div class="cardgrid" id="cardgrid"><p class="next">카드를 불러오는 중…</p></div></section>';
-  h += '<section><h3>인증 현황 <small>'+c+' / '+S.schema.checks.length+'</small></h3><ul class="chk">';
-  S.schema.checks.forEach(function(k){ var ok = m.checks && m.checks[k.id]; h += '<li class="'+(ok?'ok':'no')+'">'+(ok?'✔':'○')+' '+esc(k.name)+(k.desc?' <small class="cdesc">'+esc(k.desc)+'</small>':'')+'</li>'; });
-  h += '</ul>';
+  if(!locked && data.cardsFile) h += '<section><div class="sechead"><h3>귀속 병사 순위</h3>'+(S.rank?'<a class="rkbtn" href="#/rank">순위 보기 ▶</a>':'')+'</div><div id="profbox"></div><div class="cardgrid" id="cardgrid"><p class="next">카드를 불러오는 중…</p></div></section>';
+  h += '<section><h3>인증 현황</h3>';
+  for(var si=1; si<S.schema.grades.length; si++){        // 계단식: 지금 도전 중인 단계까지만 보여 준다
+    var sg = S.schema.grades[si]; if(!sg.requires) break;
+    var done = 0, lis = '';
+    sg.requires.forEach(function(rid){
+      var ck = S.schema.checks.filter(function(x){return x.id===rid;})[0] || {name:rid};
+      var okc = !!(gm.checks && gm.checks[rid]); if(okc) done++;
+      lis += '<li class="'+(okc?'ok':'no')+'">'+(okc?'✔':'○')+' '+esc(ck.name)+(ck.desc?' <small class="cdesc">'+esc(ck.desc)+'</small>':'')+'</li>';
+    });
+    var passed = gi >= si;
+    h += '<h4 class="stg">'+esc(sg.name)+' 승급 조건 <small>'+done+' / '+sg.requires.length+(passed?' · 완료':'')+'</small></h4><ul class="chk">'+lis+'</ul>';
+    if(!passed) break;
+  }
   if(nxt){
     var parts = [];
     if(!nxt.requires) parts.push('조건 준비 중');
@@ -291,7 +318,7 @@ function memberPage(id){
   if(fk.length){ h += '<section><h3>기본 정보</h3><table class="kv">'; fk.forEach(function(k){ h += '<tr><th>'+esc(k)+'</th><td>'+esc(fields[k])+'</td></tr>'; }); h += '</table></section>'; }
 
   if(locked){
-    h += '<section class="locked"><h3>🔒 인증 길드원 전용</h3><p class="next">보유 영웅과 영웅 카드, 콘텐츠별 영웅표, 점수와 진행도는 인증된 길드원만 볼 수 있습니다. 위에서 길드원 암호를 입력하세요.</p></section>';
+    h += '<section class="locked"><h3>🔒 인증 길드원 전용</h3><p class="next">보유 영웅과 귀속 병사 순위, 콘텐츠별 영웅표, 점수와 진행도는 인증된 길드원만 볼 수 있습니다. 위에서 길드원 암호를 입력하세요.</p></section>';
   } else {
     S.contents.forEach(function(ct){
       var req = ct.required||[], rec = ct.recommended||[];
@@ -311,17 +338,25 @@ function memberPage(id){
     });
   }
   app.innerHTML = h;
-  if(!locked && data.cardsFile) loadCards(data.cardsFile);
+  if(!locked && data.cardsFile) loadCards(data.cardsFile, hero);
 }
 
-/* 영웅 카드: 길드원별 암호화 파일을 열어 받는다(개인 페이지를 열 때만) */
-async function loadCards(file){
+/* 귀속 병사 순위 카드 + 프로필 이미지(일반 등급 이상): 길드원별 암호화 파일을 열어 받는다(개인 페이지를 열 때만) */
+async function loadCards(file, hero){
   var box = document.getElementById('cardgrid'); if(!box) return;
   try {
     if(!CARDS[file]){ var r = await fetch(file); if(!r.ok) throw new Error(r.status); CARDS[file] = await decryptWith(KEY, (await r.text()).trim()); }
     var medal = {1:'금메달',2:'은메달',3:'동메달'}, hh = '';
-    CARDS[file].cards.forEach(function(c){ hh += '<img class="hcard" loading="lazy" src="'+c.img+'" alt="'+esc(c.hero)+' 투력 '+esc(c.power)+(c.medal?' '+medal[c.medal]:'')+'">'; });
+var cl = CARDS[file].cards.slice();
+    if(hero){ var hi = -1; cl.forEach(function(c,i){ if(c.hero===hero) hi = i; }); if(hi > 0) cl.unshift(cl.splice(hi,1)[0]); }
+    cl.forEach(function(c){
+      var im = '<img class="hcard'+(hero&&c.hero===hero?' hlc':'')+'" loading="lazy" src="'+c.img+'" alt="'+esc(c.hero)+' 투력 '+esc(c.power)+(c.medal?' '+medal[c.medal]:'')+'">';
+      hh += (hero&&c.hero===hero) ? '<div class="hlwrap"><div class="hltag">여기로 이동'+(c.medal?' · '+c.medal+'위':'')+'</div>'+im+'</div>' : im;
+    });
     box = document.getElementById('cardgrid'); if(box) box.innerHTML = hh || '<p class="next">카드가 없습니다.</p>';
+    if(hero) setTimeout(function(){ var el = document.querySelector('.hlwrap'); if(el) el.scrollIntoView({block:'center'}); }, 150);
+    var pr = CARDS[file].profile, pb = document.getElementById('profbox');
+    if(pr && pb) pb.innerHTML = '<div class="profbox"><img class="pimg" src="'+pr.img+'" alt="길드원 프로필 이미지"><div><b>길드원 프로필 이미지</b>'+(pr.diamonds?'<p class="dia">💎 다이아 '+esc(pr.diamonds)+'개'+(pr.updated?' · 최근 획득 '+esc(pr.updated):'')+'</p>':'')+'<p class="next">일반 등급부터 받을 수 있습니다. 톡방 멀티프로필에 사용하세요. 다이아를 새로 얻으면 이미지가 바뀌니, 바뀐 이미지를 다시 다운로드해서 멀티프로필을 바꿔 주세요.</p><a class="dlbtn" href="'+pr.img+'" download="'+esc(pr.file)+'">⬇ 프로필 이미지 다운로드</a></div></div>';
   } catch(e){ box = document.getElementById('cardgrid'); if(box) box.innerHTML = '<p class="next">카드를 불러오지 못했습니다.</p>'; }
 }
 
@@ -340,9 +375,10 @@ function route(){
   CUR = h;
   window.scrollTo(0,0);
   if(h === '#/members') membersPage();
+  else if(h === '#/rank') rankPage();
   else if(h === '#/scout') scoutListPage();
   else if((m=h.match(/^#\/scout\/(.+)$/))) scoutPage(decodeURIComponent(m[1]));
-  else if((m=h.match(/^#\/m\/(.+)$/))) memberPage(decodeURIComponent(m[1]));
+  else if((m=h.match(/^#\/m\/(.+)$/))){ var mq2 = m[1].split('?'); memberPage(decodeURIComponent(mq2[0]), mq2[1]); }
   else if((m=h.match(/^#\/c\/(.+)$/))) catPage(decodeURIComponent(m[1]));
   else if((m=h.match(/^#\/p\/(.+)$/))) postPage(decodeURIComponent(m[1]));
   else home();
@@ -370,8 +406,8 @@ document.addEventListener('click', function(e){
   var bk = t.closest ? t.closest('#back') : null;
   if(bk && NAV.length >= 2){ e.preventDefault(); history.back(); return; }   // 사이트 안에서 이동해 왔으면 바로 이전 화면으로
   if(t.id === 'pwbtn'){ doUnlock(); return; }
-  if(t.id === 'relock'){ e.preventDefault(); try{ localStorage.removeItem('gw_pass'); }catch(x){} UNLOCKED = false; KEY = null; CARDS = {}; S.scoutData = null; S.members.forEach(function(m){ delete m.priv; }); route(); return; }
-  if(t.tagName==='IMG' && (t.closest('article') || t.classList.contains('hcard') || t.classList.contains('gimg'))){ lb.querySelector('img').src = t.src; lb.hidden = false; }
+  if(t.id === 'relock'){ e.preventDefault(); try{ localStorage.removeItem('gw_pass'); }catch(x){} UNLOCKED = false; KEY = null; CARDS = {}; S.scoutData = null; S.rankData = null; S.members.forEach(function(m){ delete m.priv; }); route(); return; }
+  if(t.tagName==='IMG' && (t.closest('article') || t.classList.contains('hcard') || t.classList.contains('gimg') || t.classList.contains('pimg'))){ lb.querySelector('img').src = t.src; lb.hidden = false; }
   else if(!lb.hidden){ lb.hidden = true; }
 });
 document.addEventListener('keydown', function(e){ if(e.key==='Enter' && e.target.id==='pw') doUnlock(); });
