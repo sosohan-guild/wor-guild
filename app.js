@@ -119,13 +119,37 @@ function home(){
   app.innerHTML = h + '</div>';
 }
 function tileHtml(c){
-  var href = c.type==='members' ? '#/members' : (c.type==='scout' ? '#/scout' : '#/c/'+esc(c.id));
+  var href = c.type==='members' ? '#/members' : (c.type==='scout' ? '#/scout' : '#/c/'+esc(c.id));   // 이벤트 카드 페이지(type event)도 #/c/ 를 쓴다
   return '<a class="tile" href="'+href+'"><span class="ic">'+iconHtml(c.icon)+'</span><span class="nm">'+esc(c.name)+'</span></a>';
+}
+/* 이벤트 카드 페이지: 정답지 카드 -> 최종 보상 카드 -> 진행 기록(최신이 위) */
+function eventPage(c){
+  var ev = (S.events||{})[c.id] || {}, h = '';
+  (ev.guides||[]).forEach(function(g){
+    h += '<article class="vcard"><h2>'+esc(g.title||'')+'</h2>'+(g.note?'<p class="next">'+esc(g.note)+'</p>':'')+'<img class="gimg" loading="lazy" src="'+esc(g.image)+'" alt="'+esc(g.title||'')+'"></article>';
+  });
+  var rw = ev.rewards||{}, items = rw.items||[];
+  h += '<article class="vcard"><h2>🎁 최종 보상</h2>';
+  if(items.length){
+    h += '<ul class="hl rwl">'; items.forEach(function(x){ h += '<li><b>'+esc(x.name||'')+'</b>'+(x.count?' x '+esc(x.count):'')+(x.note?' <small>'+esc(x.note)+'</small>':'')+'</li>'; }); h += '</ul>';
+    if(rw.pending) h += '<p class="next">'+esc(rw.pending)+'</p>';
+  } else h += '<p class="next">'+esc(rw.pending||'아직 정리된 보상 정보가 없습니다.')+'</p>';
+  h += '</article>';
+  var hist = (ev.history||[]).slice().sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
+  h += '<article class="vcard"><h2>📅 진행 기록</h2>';
+  if(hist.length){
+    h += '<ul class="hl hist">'; hist.forEach(function(x){ h += '<li><b>'+esc(x.date||'')+'</b>'+(x.note?' · '+esc(x.note):'')+'</li>'; }); h += '</ul>';
+  } else h += '<p class="next">아직 기록된 진행 날짜가 없습니다. 이벤트가 진행될 때마다 날짜를 기록하고, 최신 기록이 위로 올라옵니다.</p>';
+  h += '</article>';
+  var posts = S.posts.filter(function(p){return p.cat===c.id;});
+  posts.forEach(function(p){ h += '<article class="vcard"><h2>'+esc(p.title)+'</h2><div class="meta">'+esc(p.date)+'</div>'+md(p.body)+'</article>'; });
+  app.innerHTML = h;
 }
 function catPage(id){
   var c = S.categories.filter(function(x){return x.id===id;})[0];
   if(!c){ location.hash='#/'; return; }
   titleEl.textContent = c.name; backEl.hidden = false; backEl.href = c.parent ? '#/c/'+c.parent : '#/';
+  if(c.type==='event'){ eventPage(c); return; }
   var kids = S.categories.filter(function(x){return x.parent===id;});
   var posts = S.posts.filter(function(p){return p.cat===id;});
   var h = '';
@@ -347,7 +371,7 @@ document.addEventListener('click', function(e){
   if(bk && NAV.length >= 2){ e.preventDefault(); history.back(); return; }   // 사이트 안에서 이동해 왔으면 바로 이전 화면으로
   if(t.id === 'pwbtn'){ doUnlock(); return; }
   if(t.id === 'relock'){ e.preventDefault(); try{ localStorage.removeItem('gw_pass'); }catch(x){} UNLOCKED = false; KEY = null; CARDS = {}; S.scoutData = null; S.members.forEach(function(m){ delete m.priv; }); route(); return; }
-  if(t.tagName==='IMG' && (t.closest('article') || t.classList.contains('hcard'))){ lb.querySelector('img').src = t.src; lb.hidden = false; }
+  if(t.tagName==='IMG' && (t.closest('article') || t.classList.contains('hcard') || t.classList.contains('gimg'))){ lb.querySelector('img').src = t.src; lb.hidden = false; }
   else if(!lb.hidden){ lb.hidden = true; }
 });
 document.addEventListener('keydown', function(e){ if(e.key==='Enter' && e.target.id==='pw') doUnlock(); });
