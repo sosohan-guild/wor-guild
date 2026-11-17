@@ -1,0 +1,103 @@
+:root{--main:#2b3a67;--bg:#f3f5fb;--card:#fff;--text:#222;--sub:#888}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;line-height:1.6}
+header{background:var(--main);color:#fff;padding:14px 16px;font-weight:bold;font-size:17px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:5}
+header a{color:#fff;text-decoration:none;font-size:26px;line-height:1;padding:0 6px}
+main{max-width:720px;margin:0 auto;padding:16px}
+.sub{color:var(--sub);font-size:13px;margin:0 2px 14px}
+/* 아이콘 칸: 개수와 관계없이 칸 크기는 항상 동일 (모바일 3열, 넓은 화면 4열) */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(min-width:700px){.grid{grid-template-columns:repeat(4,1fr)}}
+.tile{background:var(--card);border-radius:14px;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-decoration:none;color:var(--text);box-shadow:0 1px 4px #0002;padding:6px;text-align:center}
+.tile:active{background:#eaeefc}
+.tile .ic{font-size:34px;line-height:1.1}
+.tile .ic img{width:40px;height:40px;object-fit:contain}
+.tile .nm{font-size:13px;margin-top:6px;font-weight:bold;word-break:keep-all}
+.list a{display:block;background:var(--card);border-radius:12px;padding:13px 14px;margin-bottom:10px;text-decoration:none;color:var(--text);box-shadow:0 1px 3px #0002}
+.list small{color:var(--sub);display:block;font-size:12px}
+.list b{font-size:15px}
+.empty{text-align:center;color:var(--sub);padding:50px 0}
+article{background:var(--card);border-radius:14px;padding:18px 16px;box-shadow:0 1px 4px #0002}
+article h1{font-size:20px;margin:0 0 4px}
+article .meta{color:var(--sub);font-size:12px;margin-bottom:14px}
+article h2{font-size:17px;margin:22px 0 6px}
+article h3{font-size:15px;margin:18px 0 4px}
+article p{margin:8px 0}
+article img{max-width:100%;height:auto;border-radius:8px;display:block;margin:10px 0;cursor:zoom-in}
+article ul{padding-left:20px}
+article a{color:#3558d6}
+.video{position:relative;padding-top:56.25%;margin:12px 0}
+.video iframe{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:8px}
+video{width:100%;border-radius:8px;margin:10px 0}
+#foot{text-align:center;color:var(--sub);font-size:12px;padding:24px 0}
+#lightbox{position:fixed;inset:0;background:#000d;z-index:20;display:flex;align-items:center;justify-content:center;overflow:auto}
+#lightbox[hidden]{display:none}
+#lightbox img{max-width:100%;max-height:100%;margin:auto}
+
+/* ---------- 길드원 ---------- */
+.search{width:100%;padding:11px 14px;border:1px solid #cdd3e6;border-radius:10px;font-size:15px;margin-bottom:12px;background:#fff}
+.gh{font-weight:bold;font-size:14px;margin:16px 0 6px;padding-left:8px;border-left:4px solid #888}
+.gh small{color:var(--sub);font-weight:normal}
+.mrow{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:12px;padding:10px 12px;margin-bottom:6px;text-decoration:none;box-shadow:0 1px 3px #0002}
+.mic{font-size:24px;width:32px;text-align:center}.mic img{width:28px;height:28px;object-fit:contain}
+.mname{font-weight:bold;font-size:15px}
+.mname.legend{background:linear-gradient(90deg,#d4a017,#f5d76e,#d4a017);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.role{font-size:11px;background:#eef0f7;color:#555;border-radius:6px;padding:1px 6px}
+.chev{margin-left:auto;color:#bbb;font-size:20px}
+.pcard{background:var(--card);border-radius:14px;padding:16px;display:flex;gap:14px;align-items:center;box-shadow:0 1px 4px #0002;margin-bottom:12px}
+.pic{font-size:44px;width:64px;height:64px;border-radius:50%;background:#eef1fb;display:flex;align-items:center;justify-content:center}
+.pcard .mname{font-size:19px}
+.pmeta{font-size:12px;color:var(--sub);margin-top:4px}
+.gbadge{color:#fff;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:bold;margin-right:4px}
+section{background:var(--card);border-radius:14px;padding:14px 14px 12px;box-shadow:0 1px 4px #0002;margin-bottom:12px}
+section h3{margin:0 0 10px;font-size:15px}section h3 small{color:var(--sub);font-weight:normal;font-size:12px;margin-left:4px}
+.chk{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px}
+.chk li{padding:6px 8px;border-radius:8px}.chk li.ok{background:#e4f6ea;color:#1c7a3d}.chk li.no{background:#f1f2f6;color:#999}
+.next{font-size:13px;margin:10px 0 0;color:#555}
+.icons{display:flex;flex-wrap:wrap;gap:8px}
+.ico{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;background:#f1f2f6}
+.ico.off{opacity:.45;font-size:16px}.ico.cur{outline:3px solid var(--main)}
+.bgs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bg{border-radius:10px;padding:8px;font-size:12px;display:flex;flex-direction:column;gap:2px;background:#fff7dd}
+.bg span{font-size:22px}.bg small{color:#888;font-size:11px}
+.bg.off{background:#f1f2f6;opacity:.5;filter:grayscale(1)}
+.kv{width:100%;border-collapse:collapse;font-size:14px}.kv th{text-align:left;color:#888;font-weight:normal;padding:5px 0;width:35%}.kv td{padding:5px 0;font-weight:bold}
+.lbl{font-size:12px;color:#888;margin:8px 0 4px}
+.hgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.hero{text-align:center;font-size:10px}
+.hero .hi{width:100%;aspect-ratio:1;border-radius:10px;background:#dfe5f7;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:20px;overflow:hidden;border:2px solid transparent}
+.hero .hi img{width:100%;height:100%;object-fit:cover}
+.hero.on .hi{background:#c9d6ff;border-color:var(--main);color:var(--main)}
+.hero.off{opacity:.28;filter:grayscale(1)}
+.hero .hn{margin-top:2px;word-break:keep-all}
+.rec{border-top:1px solid #eee;margin-top:12px;padding-top:10px;font-size:13px}.rec small{color:var(--sub)}.rec .rv{margin:3px 0 6px}.rec .note{color:#888;margin-top:6px}
+
+.grp{margin-bottom:4px}
+.grp summary{list-style:none;cursor:pointer}.grp summary::-webkit-details-marker{display:none}
+.grp summary::after{content:'▾';float:right;color:#aaa}.grp:not([open]) summary::after{content:'▸'}
+.lockbar{background:#fff7dd;border:1px solid #f0dc9a;border-radius:12px;padding:12px;margin-bottom:12px;font-size:13px}
+.lockbar.ok{background:#e4f6ea;border-color:#bfe5cb}.lockbar a{margin-left:8px;color:#555}
+.lrow{display:flex;gap:8px;margin-top:8px}.lrow input{flex:1;padding:9px 10px;border:1px solid #cdd3e6;border-radius:8px;font-size:15px}
+.lrow button{padding:9px 16px;border:0;border-radius:8px;background:var(--main);color:#fff;font-weight:bold;font-size:14px}
+.lockbar .err{color:#c0392b;margin-top:6px;min-height:1em}
+section.locked{background:#f1f2f6}
+
+/* 계정 묶음 */
+.abadge{font-size:11px;background:#e7efff;color:#2f6fe0;border-radius:6px;padding:1px 6px}
+.atabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px}
+.atab{flex:0 0 auto;font-size:13px;padding:7px 12px;border-radius:999px;background:var(--card);color:var(--text);text-decoration:none;box-shadow:0 1px 3px #0002;white-space:nowrap}
+.atab.on{background:var(--main);color:#fff}
+
+/* 영웅 카드 */
+.cardgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.cardgrid .next{grid-column:1/-1}
+.hcard{width:100%;height:auto;display:block;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.28)}
+@media (min-width:640px){.cardgrid{grid-template-columns:repeat(3,1fr)}}
+
+.cdesc{color:#8a8f98;font-weight:normal}
+
+/* 길드전 하위 화면 */
+.vcard{margin-bottom:14px}
+.vcard h2{font-size:17px;margin:0 0 4px}
+.hl{margin:6px 0 0;padding-left:18px;color:#444;font-size:13px}
+.nm2{font-size:17px}
