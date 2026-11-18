@@ -4,7 +4,7 @@ S.categories = S.categories || []; S.posts = S.posts || []; S.settings = S.setti
 S.members = S.members || []; S.contents = S.contents || []; S.heroes = S.heroes || [];
 S.schema = S.schema || {}; S.schema.grades = S.schema.grades || []; S.schema.checks = S.schema.checks || []; S.schema.badges = S.schema.badges || [];
 var st = S.settings;
-var app = document.getElementById('app'), titleEl = document.getElementById('title'), backEl = document.getElementById('back');
+var app = document.getElementById('app'), titleEl = document.getElementById('title'), backEl = document.getElementById('back'), homeEl = document.getElementById('home');
 if (st.mainColor) document.documentElement.style.setProperty('--main', st.mainColor);
 if (st.bgColor) document.documentElement.style.setProperty('--bg', st.bgColor);
 document.title = st.title || document.title;
@@ -276,6 +276,7 @@ function memberPage(id, qs){
   h += '<div class="pcard"><div class="pic">'+iconHtml(memberIcon(m))+'</div><div>'+nameHtml(m)+'<div class="pmeta"><span class="gbadge" style="background:'+esc(g.color)+'">'+esc(g.name)+'</span> '+esc(LEAD[m.role]?m.role:'길드원')+(m.joined?' · 가입 '+esc(m.joined):'')+(person&&gm!==m?' · 등급은 대표 계정 <b>'+esc(gm.name)+'</b> 기준':'')+'</div></div></div>';
 
   if(!locked && data.cardsFile) h += '<section><div class="sechead"><h3>귀속 병사 순위</h3>'+(S.rank?'<a class="rkbtn" href="#/rank">순위 보기 ▶</a>':'')+'</div><div id="profbox"></div><div class="cardgrid" id="cardgrid"><p class="next">카드를 불러오는 중…</p></div></section>';
+  if(!locked && data.defenseFile) h += '<section><div class="sechead"><h3>방어 카드</h3></div><div id="defbox"><p class="next">카드를 불러오는 중…</p></div></section>';
   h += '<section><h3>인증 현황</h3>';
   for(var si=1; si<S.schema.grades.length; si++){        // 계단식: 지금 도전 중인 단계까지만 보여 준다
     var sg = S.schema.grades[si]; if(!sg.requires) break;
@@ -339,6 +340,7 @@ function memberPage(id, qs){
   }
   app.innerHTML = h;
   if(!locked && data.cardsFile) loadCards(data.cardsFile, hero);
+  if(!locked && data.defenseFile) loadDefense(data.defenseFile);
 }
 
 /* 귀속 병사 순위 카드 + 프로필 이미지(일반 등급 이상): 길드원별 암호화 파일을 열어 받는다(개인 페이지를 열 때만) */
@@ -358,6 +360,66 @@ var cl = CARDS[file].cards.slice();
     var pr = CARDS[file].profile, pb = document.getElementById('profbox');
     if(pr && pb) pb.innerHTML = '<div class="profbox"><img class="pimg" src="'+pr.img+'" alt="길드원 프로필 이미지"><div><b>길드원 프로필 이미지</b>'+(pr.diamonds?'<p class="dia">💎 다이아 '+esc(pr.diamonds)+'개'+(pr.updated?' · 최근 획득 '+esc(pr.updated):'')+'</p>':'')+'<p class="next">일반 등급부터 받을 수 있습니다. 톡방 멀티프로필에 사용하세요. 다이아를 새로 얻으면 이미지가 바뀌니, 바뀐 이미지를 다시 다운로드해서 멀티프로필을 바꿔 주세요.</p><a class="dlbtn" href="'+pr.img+'" download="'+esc(pr.file)+'">⬇ 프로필 이미지 다운로드</a></div></div>';
   } catch(e){ box = document.getElementById('cardgrid'); if(box) box.innerHTML = '<p class="next">카드를 불러오지 못했습니다.</p>'; }
+}
+
+/* 방어 카드(주둔 팀 2개): 길드원별 암호화 파일을 열어 받는다. 초상화를 누르면 영웅 카드·능력치·장비 팝업이 열린다 */
+var DEFS = {};
+async function loadDefense(file){
+  var box = document.getElementById('defbox'); if(!box) return;
+  try {
+    if(!DEFS[file]){ var r = await fetch(file); if(!r.ok) throw new Error(r.status); DEFS[file] = await decryptWith(KEY, (await r.text()).trim()); }
+    renderDefense(DEFS[file]);
+  } catch(e){ box = document.getElementById('defbox'); if(box) box.innerHTML = '<p class="next">방어 카드를 불러오지 못했습니다.</p>'; }
+}
+function defNum(n){ return (typeof n==='number') ? n.toLocaleString('ko-KR') : esc(n); }
+function renderDefense(d){
+  var box = document.getElementById('defbox'); if(!box) return;
+  var h = '<p class="defmeta">'+esc(d.base||'')+' · 수집 '+esc(d.collectedAt||'')+(d.source?' ('+esc(d.source)+')':'')+'</p>';
+  (d.teams||[]).forEach(function(tm, ti){
+    h += '<div class="deft"><div class="defth"><b>팀 '+esc(tm.no)+'</b><span>전투력 '+defNum(tm.power)+'</span></div><div class="defrow">';
+    tm.heroes.forEach(function(x, hi){ h += '<button type="button" class="defp'+(x.card?'':' nodet')+'" data-t="'+ti+'" data-h="'+hi+'"><img src="'+x.portrait+'" alt="영웅 '+(hi+1)+'"></button>'; });
+    h += '</div></div>';
+  });
+  h += '<div id="defpanel"></div>';
+  if(d.maps && d.maps.length){ h += '<h4 class="defh4">배치도</h4><div class="defmaps">'; d.maps.forEach(function(m, i){ h += '<figure><figcaption>팀 '+(i+1)+'</figcaption><img src="'+m+'" alt="팀 '+(i+1)+' 배치도"></figure>'; }); h += '</div>'; }
+  if(d.missing && d.missing.length) h += '<p class="next">재수집 필요: '+esc(d.missing.join(', '))+'</p>';
+  h += renderOpponents(d.opponents || []);
+  box.innerHTML = h;
+  box.onclick = function(e){
+    var z = e.target.closest ? e.target.closest('.defgear img') : null;
+    if(z){ var big = document.getElementById('defbig'); if(!big){ big = document.createElement('div'); big.id = 'defbig'; big.onclick = function(){ big.style.display = 'none'; }; document.body.appendChild(big); } big.innerHTML = '<img src="'+z.src+'" alt="">'; big.style.display = 'flex'; return; }
+    var oc = e.target.closest ? e.target.closest('[data-tg]') : null;
+    if(oc){ var el = document.getElementById(oc.getAttribute('data-tg')); if(el) el.classList.toggle('show'); return; }
+    var b = e.target.closest ? e.target.closest('.defp') : null; if(!b) return;
+    var x = d.teams[+b.getAttribute('data-t')].heroes[+b.getAttribute('data-h')];
+    [].forEach.call(box.querySelectorAll('.defp'), function(n){ n.classList.remove('on'); }); b.classList.add('on');
+    var pn = document.getElementById('defpanel'); if(!x.card){ pn.innerHTML = '<div class="defpanel"><p class="next">이 영웅의 상세는 아직 수집되지 않았습니다.</p></div>'; return; }
+    var ph = '<div class="defpanel"><img class="defcard" src="'+x.card+'" alt="영웅 카드"><table class="defstat">';
+    (x.stats||[]).forEach(function(s){ ph += '<tr><td>'+esc(s[0])+'</td><td>'+esc(s[1])+'</td></tr>'; });
+    ph += '</table><h4 class="defh4">장비 (누르면 확대)</h4><div class="defgear">';
+    (x.gear||[]).forEach(function(g){ ph += '<figure><figcaption>'+esc(g.part)+'</figcaption><img src="'+g.file+'" alt="'+esc(g.part)+'"></figure>'; });
+    ph += '</div></div>'; pn.innerHTML = ph;
+  };
+}
+/* 상대 길드 기록: 길드마다 카드 1장, 횟수 버튼을 누르면 회차(시즌·날짜)가 쌓여 있고, 회차를 누르면 공격 칸(상대 닉네임·영웅·결과)이 열린다. 기록이 없으면 안내만 보인다 */
+function renderOpponents(list){
+  var h = '<h4 class="defh4">상대 길드</h4>';
+  if(!list.length) return h + '<p class="next">아직 기록이 없습니다.</p>';
+  list.forEach(function(g, gi){
+    var ms = g.meetings || [];
+    h += '<div class="oppc"><div class="opph"><b>'+esc(g.name)+'</b><button type="button" class="oppcnt" data-tg="opm'+gi+'">'+ms.length+'회 ▾</button></div><div class="oppms" id="opm'+gi+'">';
+    ms.forEach(function(m, mi){
+      var at = m.attacks || [], used = 0, w = 0, l = 0;
+      at.forEach(function(a){ if(a.result==='승'){ used++; w++; } else if(a.result==='패'){ used++; l++; } });
+      var cap = m.total || 5;
+      h += '<div class="oppm" data-tg="opb'+gi+'_'+mi+'"><span><b>'+(mi+1)+'회</b> '+esc(m.season||'')+' · '+esc(m.date||'')+'</span><span class="opps">공격 '+used+'/'+cap+' · 승 '+w+' · 패 '+l+'</span></div>';
+      h += '<div class="oppb" id="opb'+gi+'_'+mi+'"><div class="oppsum">공격 횟수 <b>'+used+' / '+cap+'</b> · 승 <b>'+w+'</b> · 패 <b>'+l+'</b> · 승률 <b>'+(used?Math.round(w*100/used)+'%':'-')+'</b></div><div class="oppat">';
+      for(var i=0; i<cap; i++){ var a = at[i] || {}; h += '<span class="no">'+(i+1)+'</span><span>'+esc(a.target||'')+'</span><span>'+esc((a.heroes||[]).join(', '))+'</span><span class="res '+(a.result==='승'?'win':a.result==='패'?'lose':'')+'">'+esc(a.result||'미사용')+'</span>'; }
+      h += '</div></div>';
+    });
+    h += '</div></div>';
+  });
+  return h;
 }
 
 var NAV = [], UI = {}, CUR = null;   // 방문한 화면 기록, 화면별 펼침/스크롤 상태
@@ -382,6 +444,7 @@ function route(){
   else if((m=h.match(/^#\/c\/(.+)$/))) catPage(decodeURIComponent(m[1]));
   else if((m=h.match(/^#\/p\/(.+)$/))) postPage(decodeURIComponent(m[1]));
   else home();
+  homeEl.hidden = backEl.hidden;   // 이전 버튼이 보이는 화면에서는 홈 버튼도 보인다(홈 화면에서는 둘 다 숨김)
   var u = UI[h];                       // 뒤로 왔거나 같은 화면을 다시 그릴 때: 펼침/스크롤 복원
   if(u && (wasBack || same)){
     [].forEach.call(document.querySelectorAll('details.grp'), function(el,i){ if(u.d[i] !== undefined) el.open = u.d[i]; });
