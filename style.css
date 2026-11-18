@@ -127,3 +127,27 @@ h4.stg small{color:#667;font-weight:normal}
 .rkp{color:#667}
 .hlwrap{border-radius:14px;outline:4px solid #ff9f43;outline-offset:3px;padding:0 0 0;position:relative}
 .hltag{background:#ff9f43;color:#3a2400;font-weight:bold;font-size:13px;text-align:center;padding:6px 4px;border-radius:10px 10px 0 0;margin:-4px -4px 6px}
+
+#home{font-size:21px;padding:0 4px}
+
+/* 방어 카드 */
+.defmeta{color:#8a8f98;font-size:13px;margin:0 0 8px}
+.deft{margin:10px 0}.defth{display:flex;justify-content:space-between;font-size:13px;color:#667;margin-bottom:6px}.defth b{color:#222}
+.defrow{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.defp{padding:0;border:2px solid #dfe3ee;border-radius:10px;overflow:hidden;background:#000;cursor:pointer}.defp img{display:block;width:100%}.defp.on{border-color:#ff9f43}.defp.nodet{opacity:.55}
+.defpanel{margin-top:12px;background:#f6f7fb;border:1px solid #e3e6ef;border-radius:12px;padding:10px}
+.defcard{width:100%;border-radius:8px;display:block}
+.defstat{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}.defstat td{padding:6px 10px;border-bottom:1px solid #e3e6ef}.defstat td:first-child{color:#667}.defstat td:last-child{text-align:right;font-weight:bold}
+.defh4{margin:14px 0 6px;font-size:13px;color:#667}
+.defgear{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;align-items:flex-start}.defgear figure{margin:0;flex:0 0 190px}.defgear figcaption,.defmaps figcaption{font-size:12px;color:#667;margin-bottom:4px}.defgear img{width:100%;border-radius:8px;border:1px solid #e3e6ef;cursor:zoom-in;display:block}
+.defmaps{display:grid;grid-template-columns:1fr 1fr;gap:8px}.defmaps figure{margin:0}.defmaps img{width:100%;border-radius:10px;border:1px solid #e3e6ef;display:block}
+#defbig{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:99}#defbig img{max-height:94vh;max-width:94vw;border-radius:10px}
+.oppc{border:1px solid #e3e6ef;border-radius:12px;margin-bottom:10px;overflow:hidden;background:#fff}
+.opph{display:flex;justify-content:space-between;align-items:center;padding:11px 12px}.opph b{font-size:15px}
+.oppcnt{border:1px solid #dfe3ee;background:#fff7ec;color:#a85d00;border-radius:99px;padding:3px 12px;font-weight:bold;font-size:13px;cursor:pointer}
+.oppms{display:none;border-top:1px solid #e3e6ef}.oppms.show{display:block}
+.oppm{display:flex;justify-content:space-between;padding:9px 12px;border-bottom:1px solid #eef0f6;font-size:13px;cursor:pointer}.opps{color:#8a8f98;font-size:12px}
+.oppb{display:none;padding:8px 12px 12px;background:#f6f7fb;border-bottom:1px solid #eef0f6}.oppb.show{display:block}
+.oppsum{font-size:12px;color:#667;margin-bottom:6px}.oppsum b{color:#222}
+.oppat{display:grid;grid-template-columns:22px 1fr 1.4fr 52px;gap:6px 8px;font-size:12px;align-items:center}.oppat .no{color:#8a8f98}
+.oppat .res{text-align:center;border:1px dashed #cfd4e3;border-radius:6px;padding:2px 0;color:#8a8f98}.oppat .res.win{border:1px solid #2e9e5b;color:#2e9e5b;font-weight:bold}.oppat .res.lose{border:1px solid #d9534f;color:#d9534f;font-weight:bold}
