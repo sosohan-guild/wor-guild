@@ -64,6 +64,7 @@ async function tryUnlock(pass){
   for(var i=0;i<S.members.length;i++){ var m = S.members[i]; if(m.enc) m.priv = await decryptWith(key, m.enc); }
   if(S.scout) S.scoutData = await decryptWith(key, S.scout);
   if(S.rank) S.rankData = await decryptWith(key, S.rank);
+  if(S.warRank) S.warRankData = await decryptWith(key, S.warRank);
   KEY = key; UNLOCKED = true; return true;
 }
 function lockBar(){
@@ -247,7 +248,21 @@ function membersPage(){
   var groups = {};
   var shown = 0;
   S.members.forEach(function(m){ if(mainOf(m) !== m) return; shown++; var gi = gradeIdx(m); (groups[gi] = groups[gi] || []).push(m); });
-  var h = '<p class="sub">길드원 '+shown+'명'+(shown!==S.members.length?' · 계정 '+S.members.length+'개':'')+' (정원 '+S.members.length+' / '+max+') · 등급 높은 순</p>'+lockBar();
+  var WR = S.warRankData;   // 길드원 암호로 열었을 때만 있음: {id:[시즌 공격 승, 패]}
+  var sub = '길드원 '+shown+'명'+(shown!==S.members.length?' · 계정 '+S.members.length+'개':'')+' (정원 '+S.members.length+' / '+max+') · ';
+  if(WR){
+    var all = []; S.members.forEach(function(m){ if(mainOf(m) === m) all.push(m); });
+    var rate = function(m){ var r = WR[m.id]; if(!r) return null; var n = r[0]+r[1]; return n ? r[0]/n : null; };
+    var games = function(m){ var r = WR[m.id]; return r ? r[0]+r[1] : 0; };
+    all.sort(function(a,b){ var x = rate(a), y = rate(b); if(x===null && y!==null) return 1; if(y===null && x!==null) return -1; if(x!==y && x!==null) return y-x; if(games(a)!==games(b)) return games(b)-games(a); return a.name.localeCompare(b.name,'ko'); });
+    var h = '<p class="sub">'+sub+'길드전 승률 높은 순 <small>(시즌 공격 승률, 같으면 공격 많은 순)</small></p>'+lockBar();
+    all.forEach(function(m, i){
+      var r = WR[m.id], rt = rate(m);
+      h += '<a class="mrow" href="#/m/'+esc(m.id)+'"><span class="mic">'+iconHtml(memberIcon(m))+'</span>'+nameHtml(m)+(LEAD[m.role]?'<span class="role">'+esc(m.role)+'</span>':'')+(PBY[m.id]?'<span class="abadge">계정 '+PBY[m.id].accounts.length+'</span>':'')+'<span class="wr'+(rt===null?' none':'')+'">'+(rt===null ? '기록 없음' : '<b>'+Math.round(rt*100)+'%</b><small>'+r[0]+'승 '+r[1]+'패</small>')+'</span><span class="chev">›</span></a>';
+    });
+    app.innerHTML = h; return;
+  }
+  var h = '<p class="sub">'+sub+'등급 높은 순</p>'+lockBar();
   Object.keys(groups).map(Number).sort(function(a,b){return b-a;}).forEach(function(gi){
     var g = S.schema.grades[gi] || {name:'', color:'#888'};
     var arr = groups[gi].sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); });
@@ -260,24 +275,54 @@ function membersPage(){
   });
   app.innerHTML = h;
 }
+var WARS = {}, WARN = 0;
+function fmtN(n){ return n==null ? '-' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+var ATK_OK = '다음에 같은 상대를 공격하세요', ATK_NG = '공략 도전하시거나 봇 거점을 공격해 주세요';
+var DEF_OK = '이 방어 배치를 유지하세요', DEF_NG = '방어 진영을 점검하고 훈련소 파훼 가이드를 확인하세요';
+function chipHtml(win, okTxt, ngTxt, video){
+  var cls = win ? 'win' : 'loss', t = win ? okTxt : ngTxt;
+  return video ? '<a class="bt-chip '+cls+'" href="'+esc(video)+'" target="_blank" rel="noopener" title="영상 보기">▶ '+t+'</a>' : '<i class="bt-chip '+cls+'">'+t+'</i>';
+}
 function battleHtml(b){
-  function fmt(n){ return n==null ? '-' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
-  var h = '<div class="bt"><div class="bt-head"><b>vs '+esc(b.opponent||'')+'</b></div>';
-  var A = b.attack||{}, D = b.defense||{};
-  h += '<div class="bt-sec"><h4>내가 한 공격</h4><div class="bt-sum"><span class="'+(A.win>=A.loss&&A.win>0?'w':(A.win===0&&A.loss===0?'':'l'))+'">확인된 공격 '+(A.win||0)+'승 '+(A.loss||0)+'패</span><small>사용 '+(A.used||0)+' / '+(A.total||0)+'회'+((A.used||0)>(A.confirmed||0)?' · 나머지 '+((A.used||0)-(A.confirmed||0))+'회는 기록 미확인':'')+'</small></div>';
-  (A.rows||[]).forEach(function(r){
-    h += '<div class="bt-card '+(r.win?'win':'loss')+'"><div class="bt-l"><b>'+esc(r.opp)+'</b><span>→ 내 '+esc(r.team)+'</span><small>내 전투력 '+fmt(r.myPower)+' · 상대 '+fmt(r.oppPower)+(r.when?' · '+esc(r.when):'')+'</small></div><i>'+(r.win?'공격 성공':'공격 실패')+'</i></div>';
-  });
-  if(!(A.rows||[]).length) h += '<p class="gnote">확인된 공격 기록이 없습니다.</p>';
+  var A = b.attack||{}, D = b.defense||{}, c = b.contrib||{}, s = b.season||{};
+  var h = '<div class="bt-sec"><h4>내가 한 공격</h4><div class="bt-sum"><span class="'+((A.win||0)>=(A.loss||0)&&(A.win||0)>0?'w':((A.win||0)===0&&(A.loss||0)===0?'':'l'))+'">확인된 공격 '+(A.win||0)+'승 '+(A.loss||0)+'패</span><small>사용 '+(A.used||0)+' / '+(A.total||0)+'회'+((A.used||0)>(A.confirmed||0)?' · 나머지 '+((A.used||0)-(A.confirmed||0))+'회는 기록을 아직 확인하지 못함':'')+'</small></div>';
+  var cap = A.total || 5, rows = A.rows||[];
+  for(var i=0; i<cap; i++){
+    var r = rows[i];
+    if(r){
+      h += '<div class="bt-card '+(r.win?'win':'loss')+'"><div class="bt-l"><small>'+(i+1)+'회 · '+esc(r.when||'')+'</small><b>'+esc(r.base||'')+' '+esc(r.opp)+'</b><span>'+esc(r.team)+' 공격 · 내 '+fmtN(r.myPower)+(r.oppPower?' / 상대 '+fmtN(r.oppPower):'')+'</span></div><div class="bt-c">'+(r.win?ATK_OK:ATK_NG)+'</div>'+chipHtml(r.win,'공격 성공','공격 실패',r.video)+'</div>';
+    } else if(i < (A.used||0)){
+      h += '<div class="bt-card empty"><div class="bt-l"><small>'+(i+1)+'회</small><b>사용함 · 기록 미확인</b></div><div class="bt-c">로봇 거점 등 아직 수집되지 않은 기록</div></div>';
+    } else {
+      h += '<div class="bt-card empty"><div class="bt-l"><small>'+(i+1)+'회</small><b>아직 사용 안 함</b></div></div>';
+    }
+  }
   h += '</div>';
   h += '<div class="bt-sec"><h4>내 탑이 받은 공격</h4><div class="bt-sum"><span class="'+((D.loss||0)>(D.win||0)?'l':((D.win||0)>0?'w':''))+'">방어 '+(D.win==null?'-':D.win)+'승 '+(D.loss==null?'-':D.loss)+'패</span></div>';
-  (D.rows||[]).forEach(function(r){
-    h += '<div class="bt-card '+(r.win?'win':'loss')+'"><div class="bt-l"><b>'+esc(r.by)+'</b><span>→ 내 '+esc(r.team)+'</span><small>공격 전투력 '+fmt(r.power)+' · 내 팀 '+fmt(r.myPower)+(r.when?' · '+esc(r.when):'')+'</small></div><i>'+(r.win?'방어 성공':'방어 실패')+'</i></div>';
+  (D.rows||[]).forEach(function(r, i){
+    h += '<div class="bt-card '+(r.win?'win':'loss')+'"><div class="bt-l"><small>'+(i+1)+'번째 · '+esc(r.when||'')+'</small><b>'+esc(r.base||'')+' ← '+esc(r.by)+'</b><span>내 '+esc(r.team)+' 방어 · 공격 '+fmtN(r.power)+' / 내 팀 '+fmtN(r.myPower)+'</span></div><div class="bt-c">'+(r.win?DEF_OK:DEF_NG)+'</div>'+chipHtml(r.win,'방어 성공','방어 실패',r.video)+'</div>';
   });
   if(!(D.rows||[]).length) h += '<p class="gnote">확인된 방어 기록이 없습니다.</p>';
   h += '</div>';
-  var c = b.contrib||{}, s = b.season||{};
-  h += '<div class="bt-foot"><b>이번 라운드 기여도 '+esc(c.value)+'</b> · 길드 '+esc(c.rank)+'위<br><small>시즌 누적 공격 '+s.attWin+'승 '+s.attLoss+'패 · 방어 '+s.defWin+'승 '+s.defLoss+'패 · 시즌 기여도 '+esc(s.contrib)+' (길드 '+esc(s.rank)+'위)</small></div></div>';
+  h += '<div class="bt-foot"><b>이번 라운드 기여도 '+esc(c.value)+'</b> · 길드 '+esc(c.rank)+'위<br><small>시즌 누적 공격 '+s.attWin+'승 '+s.attLoss+'패 · 방어 '+s.defWin+'승 '+s.defLoss+'패 · 시즌 기여도 '+esc(s.contrib)+' (길드 '+esc(s.rank)+'위) · '+esc(b.asOf||'')+'</small></div>';
+  return h;
+}
+function warCardHtml(recs, mid){
+  var by = {}, order = [];
+  recs.forEach(function(r){ var o = (r.battle && r.battle.opponent) || '상대'; if(!by[o]){ by[o] = []; order.push(o); } by[o].push(r); });
+  order.forEach(function(o){ by[o].sort(function(x,y){ return String(y.date).localeCompare(String(x.date)) || String(y.round).localeCompare(String(x.round)); }); });
+  order.sort(function(x,y){ return String(by[y][0].date).localeCompare(String(by[x][0].date)); });
+  var key = 'w'+(WARN++); WARS[key] = { by: by, order: order, sel: { opp: order[0], idx: 0 } };
+  var h = '<div class="war" id="'+key+'">'; h += warInner(key); h += '</div>';
+  return h;
+}
+function warInner(key){
+  var W = WARS[key], h = '<div class="war-opps">';
+  W.order.forEach(function(o){ var on = (o === W.sel.opp); h += '<button type="button" class="war-opp'+(on?' on':'')+'" data-wk="'+key+'" data-wopp="'+esc(o)+'">'+esc(o)+'전 <em>'+W.by[o].length+'</em><span>'+(W.open===o?'▲':'▼')+'</span></button>'; });
+  h += '</div>';
+  if(W.open){ h += '<div class="war-dates">'; W.by[W.open].forEach(function(r, i){ var on = (W.open === W.sel.opp && i === W.sel.idx); h += '<button type="button" class="war-date'+(on?' on':'')+'" data-wk="'+key+'" data-widx="'+i+'" data-wopp="'+esc(W.open)+'">'+esc(r.round)+' '+esc(r.date)+'</button>'; }); h += '</div>'; }
+  var cur = W.by[W.sel.opp][W.sel.idx];
+  h += '<div class="bt"><div class="bt-head"><b>'+esc(W.sel.opp)+'전</b><small>'+esc(cur.round)+' '+esc(cur.date)+(W.sel.idx===0?' · 최근전':'')+'</small></div>'+battleHtml(cur.battle)+'</div>';
   return h;
 }
 function growthHtml(gr){
@@ -369,6 +414,7 @@ function growthHtml(gr){
       h += '<section><h3>'+iconHtml(ct.icon||'')+' '+esc(ct.name)+(req.length?' <small>필수 영웅 '+have+' / '+req.length+'</small>':'')+'</h3>';
       if(req.length){ h += '<div class="lbl">필수</div><div class="hgrid">'; req.forEach(function(x){ h += heroTile(x, !!owned[x]); }); h += '</div>'; }
       if(rec.length){ h += '<div class="lbl">권장</div><div class="hgrid">'; rec.forEach(function(x){ h += heroTile(x, !!owned[x]); }); h += '</div>'; }
+      var wrecs = recs.filter(function(r){ return r.battle; }); recs = recs.filter(function(r){ return !r.battle; }); if(wrecs.length) h += warCardHtml(wrecs, m.id);
       recs.forEach(function(r){
         h += '<div class="rec"><b>'+esc(r.title||'')+'</b> <small>'+esc(r.date||'')+'</small><div class="rv">'+(r.score?'점수 <b>'+esc(r.score)+'</b>':'')+(r.progress?' · 진행 <b>'+esc(r.progress)+'</b>':'')+'</div>';
         if(r.battle){ h += battleHtml(r.battle); }
@@ -508,10 +554,16 @@ async function doUnlock(){
 var lb = document.getElementById('lightbox');
 document.addEventListener('click', function(e){
   var t = e.target;
+  var wb = t.closest ? t.closest('[data-wk]') : null;
+  if(wb){ var W = WARS[wb.getAttribute('data-wk')], el2 = document.getElementById(wb.getAttribute('data-wk')); if(W && el2){
+    var o = wb.getAttribute('data-wopp'), ix = wb.getAttribute('data-widx');
+    if(ix == null){ W.open = (W.open === o) ? null : o; }
+    else { W.sel = { opp: o, idx: +ix }; }
+    el2.innerHTML = warInner(wb.getAttribute('data-wk')); e.preventDefault(); return; } }
   var bk = t.closest ? t.closest('#back') : null;
   if(bk && NAV.length >= 2){ e.preventDefault(); history.back(); return; }   // 사이트 안에서 이동해 왔으면 바로 이전 화면으로
   if(t.id === 'pwbtn'){ doUnlock(); return; }
-  if(t.id === 'relock'){ e.preventDefault(); try{ localStorage.removeItem('gw_pass'); }catch(x){} UNLOCKED = false; KEY = null; CARDS = {}; S.scoutData = null; S.rankData = null; S.members.forEach(function(m){ delete m.priv; }); route(); return; }
+  if(t.id === 'relock'){ e.preventDefault(); try{ localStorage.removeItem('gw_pass'); }catch(x){} UNLOCKED = false; KEY = null; CARDS = {}; S.scoutData = null; S.rankData = null; S.warRankData = null; S.members.forEach(function(m){ delete m.priv; }); route(); return; }
   if(t.tagName==='IMG' && (t.closest('article') || t.classList.contains('hcard') || t.classList.contains('gimg') || t.classList.contains('pimg'))){ lb.querySelector('img').src = t.src; lb.hidden = false; }
   else if(!lb.hidden){ lb.hidden = true; }
 });
