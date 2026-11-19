@@ -260,6 +260,26 @@ function membersPage(){
   });
   app.innerHTML = h;
 }
+function battleHtml(b){
+  function fmt(n){ return n==null ? '-' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  var h = '<div class="bt"><div class="bt-head"><b>vs '+esc(b.opponent||'')+'</b></div>';
+  var A = b.attack||{}, D = b.defense||{};
+  h += '<div class="bt-sec"><h4>내가 한 공격</h4><div class="bt-sum"><span class="'+(A.win>=A.loss&&A.win>0?'w':(A.win===0&&A.loss===0?'':'l'))+'">확인된 공격 '+(A.win||0)+'승 '+(A.loss||0)+'패</span><small>사용 '+(A.used||0)+' / '+(A.total||0)+'회'+((A.used||0)>(A.confirmed||0)?' · 나머지 '+((A.used||0)-(A.confirmed||0))+'회는 기록 미확인':'')+'</small></div>';
+  (A.rows||[]).forEach(function(r){
+    h += '<div class="bt-card '+(r.win?'win':'loss')+'"><div class="bt-l"><b>'+esc(r.opp)+'</b><span>→ 내 '+esc(r.team)+'</span><small>내 전투력 '+fmt(r.myPower)+' · 상대 '+fmt(r.oppPower)+(r.when?' · '+esc(r.when):'')+'</small></div><i>'+(r.win?'공격 성공':'공격 실패')+'</i></div>';
+  });
+  if(!(A.rows||[]).length) h += '<p class="gnote">확인된 공격 기록이 없습니다.</p>';
+  h += '</div>';
+  h += '<div class="bt-sec"><h4>내 탑이 받은 공격</h4><div class="bt-sum"><span class="'+((D.loss||0)>(D.win||0)?'l':((D.win||0)>0?'w':''))+'">방어 '+(D.win==null?'-':D.win)+'승 '+(D.loss==null?'-':D.loss)+'패</span></div>';
+  (D.rows||[]).forEach(function(r){
+    h += '<div class="bt-card '+(r.win?'win':'loss')+'"><div class="bt-l"><b>'+esc(r.by)+'</b><span>→ 내 '+esc(r.team)+'</span><small>공격 전투력 '+fmt(r.power)+' · 내 팀 '+fmt(r.myPower)+(r.when?' · '+esc(r.when):'')+'</small></div><i>'+(r.win?'방어 성공':'방어 실패')+'</i></div>';
+  });
+  if(!(D.rows||[]).length) h += '<p class="gnote">확인된 방어 기록이 없습니다.</p>';
+  h += '</div>';
+  var c = b.contrib||{}, s = b.season||{};
+  h += '<div class="bt-foot"><b>이번 라운드 기여도 '+esc(c.value)+'</b> · 길드 '+esc(c.rank)+'위<br><small>시즌 누적 공격 '+s.attWin+'승 '+s.attLoss+'패 · 방어 '+s.defWin+'승 '+s.defLoss+'패 · 시즌 기여도 '+esc(s.contrib)+' (길드 '+esc(s.rank)+'위)</small></div></div>';
+  return h;
+}
 function growthHtml(gr){
   var h = '<section class="grow"><div class="sechead"><h3>마법병사 육성</h3></div>';
   var top = gr.top || [];
@@ -351,6 +371,8 @@ function growthHtml(gr){
       if(rec.length){ h += '<div class="lbl">권장</div><div class="hgrid">'; rec.forEach(function(x){ h += heroTile(x, !!owned[x]); }); h += '</div>'; }
       recs.forEach(function(r){
         h += '<div class="rec"><b>'+esc(r.title||'')+'</b> <small>'+esc(r.date||'')+'</small><div class="rv">'+(r.score?'점수 <b>'+esc(r.score)+'</b>':'')+(r.progress?' · 진행 <b>'+esc(r.progress)+'</b>':'')+'</div>';
+        if(r.battle){ h += battleHtml(r.battle); }
+        if((r.stats||[]).length){ h += '<div class="wstats">'; r.stats.forEach(function(s){ h += '<div class="wst"><small>'+esc(s.label)+'</small><b>'+esc(s.value)+'</b>'+(s.sub?'<em>'+esc(s.sub)+'</em>':'')+'</div>'; }); h += '</div>'; }
         if((r.heroes||[]).length){ h += '<div class="hgrid">'; r.heroes.forEach(function(x){ h += heroTile(x, true); }); h += '</div>'; }
         if(r.note) h += '<div class="note">'+esc(r.note)+'</div>';
         h += '</div>';
