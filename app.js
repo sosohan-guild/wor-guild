@@ -1,6 +1,6 @@
 (function(){
 var S = window.SITE || {};
-S.categories = S.categories || []; S.posts = S.posts || []; S.settings = S.settings || {};
+S.categories = S.categories || []; S.posts = S.posts || []; S.tlock = S.tlock || []; S.settings = S.settings || {};
 S.members = S.members || []; S.contents = S.contents || []; S.heroes = S.heroes || [];
 S.schema = S.schema || {}; S.schema.grades = S.schema.grades || []; S.schema.checks = S.schema.checks || []; S.schema.badges = S.schema.badges || [];
 var st = S.settings;
@@ -65,11 +65,39 @@ async function tryUnlock(pass){
   if(S.scout) S.scoutData = await decryptWith(key, S.scout);
   if(S.rank) S.rankData = await decryptWith(key, S.rank);
   if(S.warRank) S.warRankData = await decryptWith(key, S.warRank);
+  if(S.tpriv) S.tprivData = await decryptWith(key, S.tpriv);
   KEY = key; UNLOCKED = true; return true;
+}
+function meId(){ try{ return localStorage.getItem('gw_me') || ''; }catch(e){ return ''; } }
+function meMember(){ var id = meId(); return S.members.filter(function(m){ return m.id === id; })[0] || null; }
+function meSelect(){
+  var cur = meId(), mains = S.members.filter(function(m){ return mainOf(m) === m; }).sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); });
+  return '<select id="meSel"><option value="">닉네임 선택</option>'+mains.map(function(m){ return '<option value="'+esc(m.id)+'"'+(m.id===cur?' selected':'')+'>'+esc(m.name)+'</option>'; }).join('')+'</select>';
+}
+function gradeIdOf(id){ for(var i=0;i<S.schema.grades.length;i++){ if(S.schema.grades[i].id===id) return i; } return 0; }
+function nextHint(m){
+  var gi = gradeIdx(m), nxt = S.schema.grades[gi+1], gm = mainOf(m);
+  if(!nxt) return '';
+  var parts = [];
+  if(!nxt.requires) parts.push('조건 준비 중');
+  else { nxt.requires.forEach(function(id){ if(!(gm.checks && gm.checks[id])){ var ck = S.schema.checks.filter(function(x){return x.id===id;})[0]; parts.push(ck?ck.name:id); } });
+    if(nxt.minBadges && (gm.badges||[]).length < nxt.minBadges) parts.push('배지 '+(nxt.minBadges-(gm.badges||[]).length)+'개'); }
+  return '다음 등급 <b style="color:'+esc(nxt.color)+'">'+esc(nxt.name)+'</b>까지: '+(parts.join(', ')||'조건 달성');
+}
+/* 등급 제한 확인: 통과면 null, 아니면 안내 HTML. 접속자를 알 수 없어서 '내 닉네임'을 직접 고르게 한다(안내용이며 보안 장치는 아님) */
+function gradeGate(minId){
+  if(!minId) return null;
+  var need = gradeIdOf(minId), ng = S.schema.grades[need] || {name:minId, color:'#888'};
+  var me = meMember();
+  if(!me) return '<p class="next">이 글은 <b style="color:'+esc(ng.color)+'">'+esc(ng.name)+'</b> 등급부터 볼 수 있어요. 내 등급을 확인하려면 닉네임을 먼저 골라 주세요.</p><div class="lrow">'+meSelect()+'</div>';
+  var gi = gradeIdx(me);
+  if(gi >= need) return null;
+  var cg = S.schema.grades[gi] || {name:'', color:'#888'};
+  return '<p class="next">이 글은 <b style="color:'+esc(ng.color)+'">'+esc(ng.name)+'</b> 등급부터 볼 수 있어요. '+esc(me.name)+'님은 지금 <b style="color:'+esc(cg.color)+'">'+esc(cg.name)+'</b>이에요.</p><p class="next">'+nextHint(me)+'</p><p class="next"><a href="#/m/'+esc(me.id)+'">내 승급 조건 보기 ▶</a> · 다른 사람이면 <span class="meinl">'+meSelect()+'</span></p>';
 }
 function lockBar(){
   if(!S.crypto) return '';
-  if(UNLOCKED) return '<div class="lockbar ok">🔓 인증 길드원 정보 열람 중 <a href="#" id="relock">잠그기</a></div>';
+  if(UNLOCKED) return '<div class="lockbar ok">🔓 인증 길드원 정보 열람 중 <a href="#" id="relock">잠그기</a><span class="meinl"> · 내 닉네임 '+meSelect()+'</span></div>';
   return '<div class="lockbar"><b>🔒 인증 길드원 전용 정보가 있습니다</b><div class="lrow"><input id="pw" type="password" placeholder="길드원 암호" autocomplete="off"><button id="pwbtn">확인</button></div><div class="err" id="pwerr"></div></div>';
 }
 
@@ -158,8 +186,19 @@ function catPage(id){
   if(kids.length){ h += '<div class="grid">'; kids.forEach(function(k){ h += tileHtml(k); }); h += '</div>'; }
   if(c.layout==='cards'){
     // 카드형: 새 카드가 맨 위, 기존 카드는 아래로 내려간다(글은 날짜 내림차순)
-    if(!posts.length) h += '<div class="empty">아직 올라온 카드가 없습니다.</div>';
-    posts.forEach(function(p){ h += '<article class="vcard"><h2>'+esc(p.title)+'</h2><div class="meta">'+esc(p.date)+'</div>'+md(p.body)+'</article>'; });
+    var all = posts.slice(), lockedAny = false;
+    if(S.tprivData) S.tprivData.filter(function(p){return p.cat===id;}).forEach(function(p){ all.push(p); });
+    else S.tlock.filter(function(p){return p.cat===id;}).forEach(function(p){ all.push({id:p.id, title:p.title, date:p.date, locked:true}); lockedAny = true; });
+    all.sort(function(a,b){ return String(b.date).localeCompare(String(a.date)); });
+    if(lockedAny) h += lockBar();
+    if(!all.length) h += '<div class="empty">아직 올라온 카드가 없습니다.</div>';
+    all.forEach(function(p){
+      var body, gg = p.locked ? null : gradeGate(p.minGrade);
+      if(p.locked){ var ng = p.minGrade ? (S.schema.grades[gradeIdOf(p.minGrade)]||{}) : null; body = '<p class="next">🔒 길드원 암호를 입력하면 볼 수 있습니다.'+(ng&&ng.name?' ('+esc(ng.name)+' 등급부터)':'')+'</p>'; }
+      else if(gg) body = '<div class="gate">🔒 '+gg+'</div>';
+      else body = md(p.body);
+      h += '<article class="vcard"><h2>'+esc(p.title)+'</h2><div class="meta">'+esc(p.date)+'</div>'+body+'</article>';
+    });
   } else if(posts.length || !kids.length){
     h += '<div class="list">';
     posts.forEach(function(p){ h += '<a href="#/p/'+esc(p.id)+'"><b>'+esc(p.title)+'</b><small>'+esc(p.date)+'</small></a>'; });
@@ -235,10 +274,16 @@ function rankPage(){
 }
 
 function postPage(id){
-  var p = S.posts.filter(function(x){return x.id===id;})[0];
-  if(!p){ location.hash='#/'; return; }
+  var p = S.posts.filter(function(x){return x.id===id;})[0] || (S.tprivData||[]).filter(function(x){return x.id===id;})[0];
+  if(!p){
+    var lk = S.tlock.filter(function(x){return x.id===id;})[0];
+    if(lk){ titleEl.textContent = '길드원 훈련소'; backEl.hidden = false; backEl.href = '#/c/'+lk.cat; var lg = lk.minGrade ? (S.schema.grades[gradeIdOf(lk.minGrade)]||{}) : null; app.innerHTML = lockBar()+'<section class="locked"><h3>🔒 '+esc(lk.title)+'</h3><p class="next">길드원 암호를 입력하면 볼 수 있습니다.'+(lg&&lg.name?' ('+esc(lg.name)+' 등급부터 볼 수 있어요)':'')+'</p></section>'; return; }
+    location.hash='#/'; return;
+  }
   var c = S.categories.filter(function(x){return x.id===p.cat;})[0];
   titleEl.textContent = c ? c.name : ''; backEl.hidden = false; backEl.href = '#/c/'+p.cat;
+  var gg = gradeGate(p.minGrade);
+  if(gg){ app.innerHTML = lockBar()+'<section class="locked"><h3>🔒 '+esc(p.title)+'</h3>'+gg+'</section>'; return; }
   app.innerHTML = '<article><h1>'+esc(p.title)+'</h1><div class="meta">'+esc(p.date)+'</div>'+md(p.body)+'</article>';
 }
 
@@ -293,6 +338,7 @@ function openYt(id){
 }
 function closeYt(){ var o = document.getElementById('ytmodal'); if(o) o.remove(); document.body.classList.remove('ytopen'); }
 document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeYt(); });
+document.addEventListener('change',function(e){ if(e.target && e.target.id==='meSel'){ try{ if(e.target.value) localStorage.setItem('gw_me', e.target.value); else localStorage.removeItem('gw_me'); }catch(x){} route(); } });
 document.addEventListener('click', function(e){ var b = e.target.closest && e.target.closest('[data-yt]'); if(b){ e.preventDefault(); openYt(b.getAttribute('data-yt')); } });
 function battleHtml(b){
   var A = b.attack||{}, D = b.defense||{}, c = b.contrib||{}, s = b.season||{};
@@ -574,7 +620,7 @@ document.addEventListener('click', function(e){
   var bk = t.closest ? t.closest('#back') : null;
   if(bk && NAV.length >= 2){ e.preventDefault(); history.back(); return; }   // 사이트 안에서 이동해 왔으면 바로 이전 화면으로
   if(t.id === 'pwbtn'){ doUnlock(); return; }
-  if(t.id === 'relock'){ e.preventDefault(); try{ localStorage.removeItem('gw_pass'); }catch(x){} UNLOCKED = false; KEY = null; CARDS = {}; S.scoutData = null; S.rankData = null; S.warRankData = null; S.members.forEach(function(m){ delete m.priv; }); route(); return; }
+  if(t.id === 'relock'){ e.preventDefault(); try{ localStorage.removeItem('gw_pass'); }catch(x){} UNLOCKED = false; KEY = null; CARDS = {}; S.scoutData = null; S.rankData = null; S.warRankData = null; S.tprivData = null; S.members.forEach(function(m){ delete m.priv; }); route(); return; }
   if(t.tagName==='IMG' && (t.closest('article') || t.classList.contains('hcard') || t.classList.contains('gimg') || t.classList.contains('pimg'))){ lb.querySelector('img').src = t.src; lb.hidden = false; }
   else if(!lb.hidden){ lb.hidden = true; }
 });
