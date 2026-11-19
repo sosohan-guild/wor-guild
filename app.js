@@ -260,7 +260,25 @@ function membersPage(){
   });
   app.innerHTML = h;
 }
-function memberPage(id, qs){
+function growthHtml(gr){
+  var h = '<section class="grow"><div class="sechead"><h3>마법병사 육성</h3></div>';
+  var top = gr.top || [];
+  h += '<h4 class="stg">먼저 올릴 유닛 TOP '+(top.length||5)+'</h4>';
+  if(!top.length) h += '<p class="next">지금 기준에 모자란 유닛이 없습니다. 확인 필요 유닛은 마법병사 탭 사진을 주면 채워집니다.</p>';
+  top.forEach(function(u){
+    var mx = Math.max(u.base, u.lv, 10);
+    h += '<div class="grow-row"><img class="gimg" src="'+esc(u.img)+'" alt=""><div class="gmain"><div class="gname">'+esc(u.name)+(u.est?' <small>(이름 추정)</small>':'')+'<span class="gchip '+u.color+'">-'+u.gap+'</span></div>'
+       + '<div class="gsm">내 Lv '+u.lv+' / 기준 Lv '+u.base+'</div><div class="gbar"><i class="'+u.color+'" style="width:'+Math.max(3,Math.round(100*u.lv/mx))+'%"></i><b style="left:'+Math.round(100*u.base/mx)+'%"></b></div></div></div>';
+  });
+  h += '<details class="gall"><summary>전체 유닛 '+(gr.list||[]).length+'종 보기</summary>';
+  (gr.list||[]).forEach(function(u){
+    h += '<div class="gl"><span class="gdot '+u.color+'"></span><span class="gln">'+esc(u.name)+(u.est?'<small>(추정)</small>':'')+'</span><span class="glv">'+(u.lv!=null?('Lv '+u.lv+' / 기준 '+u.base):'확인 필요')+'</span></div>';
+  });
+  h += '</details>';
+  var s = gr.source || {};
+  h += '<p class="gnote">값 출처: '+(s.tabPhoto?('마법병사 탭 사진 ('+esc(s.tabPhoto)+')'):'공격 편성 화면에서 읽은 값')+(s.tabPhoto&&s.fromBattle?' + 공격 편성 화면':'')+'. '+(s.tabPhoto?'':'탭 사진을 주면 쓰지 않은 유닛도 채워집니다.')+'</p></section>';
+  return h;
+}function memberPage(id, qs){
   var hero = null; if(qs){ var mq = qs.match(/hero=([^&]+)/); if(mq) hero = decodeURIComponent(mq[1]); }
   var m = S.members.filter(function(x){return x.id===id;})[0];
   if(!m){ location.hash='#/members'; return; }
@@ -277,6 +295,7 @@ function memberPage(id, qs){
 
   if(!locked && data.cardsFile) h += '<section><div class="sechead"><h3>귀속 병사 순위</h3>'+(S.rank?'<a class="rkbtn" href="#/rank">순위 보기 ▶</a>':'')+'</div><div id="profbox"></div><div class="cardgrid" id="cardgrid"><p class="next">카드를 불러오는 중…</p></div></section>';
   if(!locked && data.defenseFile) h += '<section><div class="sechead"><h3>방어 카드</h3></div><div id="defbox"><p class="next">카드를 불러오는 중…</p></div></section>';
+  if(!locked && data.growth) h += growthHtml(data.growth);
   h += '<section><h3>인증 현황</h3>';
   for(var si=1; si<S.schema.grades.length; si++){        // 계단식: 지금 도전 중인 단계까지만 보여 준다
     var sg = S.schema.grades[si]; if(!sg.requires) break;
@@ -395,7 +414,7 @@ function renderDefense(d){
     [].forEach.call(box.querySelectorAll('.defp'), function(n){ n.classList.remove('on'); }); b.classList.add('on');
     var pn = document.getElementById('defpanel'); if(!x.card){ pn.innerHTML = '<div class="defpanel"><p class="next">이 영웅의 상세는 아직 수집되지 않았습니다.</p></div>'; return; }
     var ph = '<div class="defpanel"><img class="defcard" src="'+x.card+'" alt="영웅 카드"><table class="defstat">';
-    (x.stats||[]).forEach(function(s){ ph += '<tr><td>'+esc(s[0])+'</td><td>'+esc(s[1])+'</td></tr>'; });
+    (x.stats||[]).forEach(function(s){ var cc=''; if(s[0]==='치명타율'){ var cv=parseFloat(s[1]); cc = x.critSkip ? ' class="crit-n"' : (cv>=100 ? ' class="crit-b"' : (cv>=95 ? ' class="crit-y"' : ' class="crit-r"')); } ph += '<tr><td>'+esc(s[0])+'</td><td'+cc+'>'+esc(s[1])+'</td></tr>'; });
     ph += '</table><h4 class="defh4">장비 (누르면 확대)</h4><div class="defgear">';
     (x.gear||[]).forEach(function(g){ ph += '<figure><figcaption>'+esc(g.part)+'</figcaption><img src="'+g.file+'" alt="'+esc(g.part)+'"></figure>'; });
     ph += '</div></div>'; pn.innerHTML = ph;
