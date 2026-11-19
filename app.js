@@ -281,8 +281,19 @@ var ATK_OK = '다음에 같은 상대를 공격하세요', ATK_NG = '공략 도�
 var DEF_OK = '이 방어 배치를 유지하세요', DEF_NG = '방어 진영을 점검하고 훈련소 파훼 가이드를 확인하세요';
 function chipHtml(win, okTxt, ngTxt, video){
   var cls = win ? 'win' : 'loss', t = win ? okTxt : ngTxt;
+  if(video && String(video).indexOf('yt:') === 0) return '<button type="button" class="bt-chip '+cls+'" data-yt="'+esc(String(video).slice(3))+'" title="영상 보기">▶ '+t+'</button>';
   return video ? '<a class="bt-chip '+cls+'" href="'+esc(video)+'" target="_blank" rel="noopener" title="영상 보기">▶ '+t+'</a>' : '<i class="bt-chip '+cls+'">'+t+'</i>';
 }
+function openYt(id){
+  closeYt();
+  var o = document.createElement('div'); o.id = 'ytmodal'; o.className = 'ytm';
+  o.innerHTML = '<div class="ytbox"><button type="button" class="ytx" aria-label="닫기">✕</button><div class="ytfr"><iframe src="https://www.youtube-nocookie.com/embed/'+encodeURIComponent(id)+'?rel=0&playsinline=1&autoplay=1" title="길드전 기록 영상" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div><a class="ytlink" href="https://youtu.be/'+encodeURIComponent(id)+'" target="_blank" rel="noopener">재생이 안 되면 YouTube에서 열기</a></div>';
+  o.addEventListener('click', function(e){ if(e.target === o || (e.target.classList && e.target.classList.contains('ytx'))) closeYt(); });
+  document.body.appendChild(o); document.body.classList.add('ytopen');
+}
+function closeYt(){ var o = document.getElementById('ytmodal'); if(o) o.remove(); document.body.classList.remove('ytopen'); }
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeYt(); });
+document.addEventListener('click', function(e){ var b = e.target.closest && e.target.closest('[data-yt]'); if(b){ e.preventDefault(); openYt(b.getAttribute('data-yt')); } });
 function battleHtml(b){
   var A = b.attack||{}, D = b.defense||{}, c = b.contrib||{}, s = b.season||{};
   var h = '<div class="bt-sec"><h4>내가 한 공격</h4><div class="bt-sum"><span class="'+((A.win||0)>=(A.loss||0)&&(A.win||0)>0?'w':((A.win||0)===0&&(A.loss||0)===0?'':'l'))+'">확인된 공격 '+(A.win||0)+'승 '+(A.loss||0)+'패</span><small>사용 '+(A.used||0)+' / '+(A.total||0)+'회'+((A.used||0)>(A.confirmed||0)?' · 나머지 '+((A.used||0)-(A.confirmed||0))+'회는 기록을 아직 확인하지 못함':'')+'</small></div>';
