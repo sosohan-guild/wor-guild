@@ -267,12 +267,12 @@ function growthHtml(gr){
   if(!top.length) h += '<p class="next">지금 기준에 모자란 유닛이 없습니다. 확인 필요 유닛은 마법병사 탭 사진을 주면 채워집니다.</p>';
   top.forEach(function(u){
     var mx = Math.max(u.base, u.lv, 10);
-    h += '<div class="grow-row"><img class="gimg" src="'+esc(u.img)+'" alt=""><div class="gmain"><div class="gname">'+esc(u.name)+(u.est?' <small>(이름 추정)</small>':'')+'<span class="gchip '+u.color+'">-'+u.gap+'</span></div>'
+    h += '<div class="grow-row"><button type="button" class="gimgbtn" data-uid="'+esc(u.id)+'" aria-label="'+esc(u.name)+' 설명"><img class="gimg" src="'+esc(u.img)+'" alt=""></button><div class="gmain"><div class="gname">'+esc(u.name)+(u.est?' <small>(이름 추정)</small>':'')+'<span class="gchip '+u.color+'">-'+u.gap+'</span></div>'
        + '<div class="gsm">내 Lv '+u.lv+' / 기준 Lv '+u.base+'</div><div class="gbar"><i class="'+u.color+'" style="width:'+Math.max(3,Math.round(100*u.lv/mx))+'%"></i><b style="left:'+Math.round(100*u.base/mx)+'%"></b></div></div></div>';
   });
   h += '<details class="gall"><summary>전체 유닛 '+(gr.list||[]).length+'종 보기</summary>';
   (gr.list||[]).forEach(function(u){
-    h += '<div class="gl"><span class="gdot '+u.color+'"></span><span class="gln">'+esc(u.name)+(u.est?'<small>(추정)</small>':'')+'</span><span class="glv">'+(u.lv!=null?('Lv '+u.lv+' / 기준 '+u.base):'확인 필요')+'</span></div>';
+    h += '<div class="gl"><span class="gdot '+u.color+'"></span><span class="gln" data-uid="'+esc(u.id)+'">'+esc(u.name)+(u.est?'<small>(추정)</small>':'')+'</span><span class="glv">'+(u.lv!=null?('Lv '+u.lv+' / 기준 '+u.base):'확인 필요')+'</span></div>';
   });
   h += '</details>';
   var s = gr.source || {};
@@ -295,7 +295,8 @@ function growthHtml(gr){
 
   if(!locked && data.cardsFile) h += '<section><div class="sechead"><h3>귀속 병사 순위</h3>'+(S.rank?'<a class="rkbtn" href="#/rank">순위 보기 ▶</a>':'')+'</div><div id="profbox"></div><div class="cardgrid" id="cardgrid"><p class="next">카드를 불러오는 중…</p></div></section>';
   if(!locked && data.defenseFile) h += '<section><div class="sechead"><h3>방어 카드</h3></div><div id="defbox"><p class="next">카드를 불러오는 중…</p></div></section>';
-  if(!locked && data.growth) h += growthHtml(data.growth);
+  var gmi = 1; if(S.schema.growth && S.schema.growth.minGrade){ for(var gk=0; gk<S.schema.grades.length; gk++){ if(S.schema.grades[gk].id===S.schema.growth.minGrade){ gmi = gk; break; } } }
+  if(!locked && data.growth && gi >= gmi) h += growthHtml(data.growth);
   h += '<section><h3>인증 현황</h3>';
   for(var si=1; si<S.schema.grades.length; si++){        // 계단식: 지금 도전 중인 단계까지만 보여 준다
     var sg = S.schema.grades[si]; if(!sg.requires) break;
@@ -499,4 +500,33 @@ document.addEventListener('keydown', function(e){ if(e.key==='Enter' && e.target
   if(saved && S.crypto){ try{ await tryUnlock(saved); }catch(e){} }
   route();
 })();
+/* 마법병사 유닛 설명 팝업 (2026-11-19): 초상화/이름 클릭 -> 특성, 스킬, 훈련소 가이드 경로(가이드가 있는 유닛만) */
+var UNITINFO = null;
+function unitInfo(cb){ if(UNITINFO) return cb(UNITINFO); fetch('images/growth/unit_info.json').then(function(r){return r.json();}).then(function(j){ UNITINFO = j; cb(j); }).catch(function(){ cb({}); }); }
+function closeUnit(){ var o = document.getElementById('unitov'); if(o) o.remove(); document.body.classList.remove('noscroll'); }
+function openUnit(uid){
+  unitInfo(function(all){
+    var u = all[uid]; if(!u) return;
+    var h = '<div class="uov-box"><button type="button" class="uov-x" id="unitclose">닫기 ✕</button>';
+    h += '<div class="uov-top"><img class="uov-img" src="'+esc(u.portrait)+'" alt=""><div class="uov-meta"><h3>'+esc(u.name)+(u.confidence && u.confidence!=='높음' ? ' <small>(이름 추정)</small>' : '')+'</h3>';
+    h += '<div class="uov-chips"><span>'+esc(u.rarity||'')+'</span><span>코스트 '+esc(u.cost)+'</span>'+(u.element?'<span>'+esc(u.element)+'</span>':'')+(u.defense?'<span>'+esc(u.defense)+'</span>':'')+(u.qty?'<span>수량 '+esc(u.qty)+'</span>':'')+(u.limit?'<span>횟수 제한 '+esc(u.limit)+'</span>':'')+'</div>';
+    h += '</div></div>';
+    if(u.grades){ h += '<table class="uov-gr"><tr>'; Object.keys(u.grades).forEach(function(k){ h += '<th>'+esc(k)+'</th>'; }); h += '</tr><tr>'; Object.keys(u.grades).forEach(function(k){ h += '<td>'+esc(u.grades[k])+'</td>'; }); h += '</tr></table>'; }
+    if((u.guides||[]).length){ h += '<div class="uov-guide"><b>길드원 훈련소 가이드</b>'; u.guides.forEach(function(g){ h += '<a href="#/p/'+esc(g.post)+'" class="uov-go">'+esc(g.title)+' ▶</a>'; }); h += '</div>'; }
+    if((u.skills||[]).length){ h += '<h4 class="stg">스킬과 특성</h4><div class="uov-sk">'; u.skills.forEach(function(s){ h += '<img loading="lazy" src="'+esc(s)+'" alt="스킬 설명">'; }); h += '</div><p class="gnote">레벨 1 화면 기준 설명입니다. 레벨이 오르면 잠금이 풀립니다.</p>'; }
+    else h += '<p class="next">아직 이 유닛의 스킬 정보가 없습니다.</p>';
+    h += '</div>';
+    var ov = document.getElementById('unitov'); if(ov) ov.remove();
+    ov = document.createElement('div'); ov.id = 'unitov'; ov.className = 'uov'; ov.innerHTML = h; document.body.appendChild(ov); document.body.classList.add('noscroll');
+  });
+}
+document.addEventListener('click', function(e){
+  var t = e.target;
+  if(t.closest && t.closest('#unitclose')){ closeUnit(); return; }
+  if(t.id === 'unitov'){ closeUnit(); return; }
+  if(t.closest && t.closest('.uov-go')){ closeUnit(); return; }
+  var el = t.closest ? t.closest('[data-uid]') : null;
+  if(el && el.getAttribute('data-uid')){ e.preventDefault(); openUnit(el.getAttribute('data-uid')); }
+});
+window.addEventListener('hashchange', closeUnit);
 })();
