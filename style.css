@@ -197,3 +197,20 @@ body.noscroll{overflow:hidden}
 .uov-guide{margin:14px 0;padding:10px 12px;border-radius:12px;background:#fff6dd}.uov-guide b{display:block;margin-bottom:6px}
 .uov-go{display:block;padding:6px 0;font-weight:700;color:#8a5a00}
 .uov-sk{display:flex;flex-direction:column;gap:8px}.uov-sk img{width:100%;border-radius:8px;border:1px solid #e5e5e5}
+
+/* 길드전 라운드 전적 칸 (2026-11-19) */
+.wstats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.wst{background:#f6f7fb;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+.wst small{color:#8a8f98;font-size:11px}.wst b{font-size:15px;color:#222}.wst em{font-style:normal;font-size:11px;color:#8a8f98}
+.wst:last-child{grid-column:1 / -1}
+
+/* 길드전 C형 전적: 내가 한 공격 + 내 탑이 받은 공격 (2026-11-19) */
+.bt-head{display:flex;align-items:baseline;gap:8px;margin:6px 0}.bt-head b{font-size:17px}.bt-head small{color:#8a8f98}
+.bt-sec h4{margin:12px 0 6px;font-size:14px}
+.bt-sum{display:flex;flex-direction:column;gap:2px;margin-bottom:6px}.bt-sum span{font-size:20px;font-weight:800;color:#444}.bt-sum span.l{color:#c83232}.bt-sum span.w{color:#2f6fd6}.bt-sum small{color:#8a8f98;font-size:12px}
+.bt-card{display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:10px;padding:8px 10px;margin:6px 0}
+.bt-card.loss{background:#fbecec}.bt-card.win{background:#e9f0fd}
+.bt-l{display:flex;flex-direction:column;gap:1px;min-width:0}.bt-l b{font-size:15px}.bt-l span{font-size:12px;color:#555}.bt-l small{font-size:11px;color:#8a8f98}
+.bt-card i{font-style:normal;color:#fff;font-weight:700;font-size:12px;border-radius:10px;padding:4px 9px;white-space:nowrap}
+.bt-card.loss i{background:#e64646}.bt-card.win i{background:#4682e6}
+.bt-foot{margin-top:12px;padding-top:8px;border-top:1px solid #eee;font-size:14px}.bt-foot small{color:#8a8f98;font-size:12px}
