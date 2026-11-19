@@ -180,3 +180,20 @@ h4.stg small{color:#667;font-weight:normal}
 .gdot{width:14px;height:14px;border-radius:4px;flex:none}
 .gln{flex:1}.gln small{color:#8a8f98;margin-left:4px}
 .glv{color:#666}
+
+/* 유닛 초상화 버튼 / 설명 팝업 (2026-11-19) */
+.gimgbtn{border:0;background:none;padding:0;cursor:pointer;flex:none}
+.grow .gimg{width:66px;height:88px;border-radius:8px;object-fit:cover;display:block}
+.gln[data-uid]{cursor:pointer;text-decoration:underline dotted}
+body.noscroll{overflow:hidden}
+.uov{position:fixed;inset:0;background:rgba(10,12,24,.72);z-index:50;overflow-y:auto;padding:14px}
+.uov-box{max-width:520px;margin:20px auto;background:#fff;border-radius:16px;padding:16px}
+.uov-x{float:right;border:0;background:#eee;border-radius:12px;padding:6px 12px;font-weight:700;cursor:pointer}
+.uov-top{display:flex;gap:12px;align-items:flex-start;clear:both}
+.uov-img{width:120px;height:160px;border-radius:10px;object-fit:cover;flex:none}
+.uov-meta h3{margin:0 0 6px}.uov-meta small{color:#8a8f98;font-weight:400}
+.uov-chips{display:flex;flex-wrap:wrap;gap:6px}.uov-chips span{background:#f0f2f6;border-radius:10px;padding:3px 9px;font-size:12px}
+.uov-gr{margin-top:12px;width:100%;border-collapse:collapse;font-size:12px}.uov-gr th,.uov-gr td{border:1px solid #e5e5e5;padding:4px 6px;text-align:center;white-space:nowrap}.uov-gr th{background:#f7f7f9}
+.uov-guide{margin:14px 0;padding:10px 12px;border-radius:12px;background:#fff6dd}.uov-guide b{display:block;margin-bottom:6px}
+.uov-go{display:block;padding:6px 0;font-weight:700;color:#8a5a00}
+.uov-sk{display:flex;flex-direction:column;gap:8px}.uov-sk img{width:100%;border-radius:8px;border:1px solid #e5e5e5}
