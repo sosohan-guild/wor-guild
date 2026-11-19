@@ -214,3 +214,27 @@ body.noscroll{overflow:hidden}
 .bt-card i{font-style:normal;color:#fff;font-weight:700;font-size:12px;border-radius:10px;padding:4px 9px;white-space:nowrap}
 .bt-card.loss i{background:#e64646}.bt-card.win i{background:#4682e6}
 .bt-foot{margin-top:12px;padding-top:8px;border-top:1px solid #eee;font-size:14px}.bt-foot small{color:#8a8f98;font-size:12px}
+
+/* 길드전 상대전/날짜 선택 + 공격 슬롯 카드 (2026-11-19 개정) */
+.war-opps{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
+.war-opp{border:1px solid #d9dce6;background:#fff;border-radius:12px;padding:8px 12px;font-weight:800;font-size:15px;cursor:pointer}
+.war-opp.on{background:#2c3a6b;color:#fff;border-color:#2c3a6b}.war-opp em{font-style:normal;font-weight:600;font-size:12px;opacity:.8;margin-left:4px}.war-opp span{font-size:10px;margin-left:6px}
+.war-dates{display:flex;flex-direction:column;gap:4px;margin:4px 0 8px;padding:8px;border-radius:10px;background:#f4f5fa}
+.war-date{border:0;background:none;text-align:left;padding:7px 8px;border-radius:8px;font-size:14px;cursor:pointer;color:#333}.war-date.on{background:#e3e8fb;font-weight:800}
+.bt-card{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto;align-items:center}
+.bt-c{font-size:11.5px;color:#666;text-align:center;line-height:1.35;padding:0 4px}
+.bt-card.empty{background:#f3f4f7;opacity:.85;grid-template-columns:1fr 1fr}.bt-card.empty .bt-l b{color:#777;font-size:13px}
+.bt-chip{font-style:normal;color:#fff;font-weight:700;font-size:12px;border-radius:10px;padding:5px 9px;white-space:nowrap;text-decoration:none;display:inline-block}
+.bt-chip.loss{background:#e64646}.bt-chip.win{background:#4682e6}
+a.bt-chip{box-shadow:0 0 0 2px rgba(255,255,255,.7) inset}
+
+/* 좁은 화면(휴대폰): 위 줄 = 정보 + 결과 아이콘, 아래 줄 = 가운데 안내 문구 */
+@media (max-width:560px){
+ .bt-card{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"l chip" "c c";row-gap:4px}
+ .bt-card .bt-l{grid-area:l}.bt-card .bt-chip{grid-area:chip}.bt-card .bt-c{grid-area:c;text-align:left;padding:4px 0 0;border-top:1px dashed rgba(0,0,0,.12);font-size:12px}
+ .bt-card.empty{grid-template-columns:1fr;grid-template-areas:"l" "c"}
+ .bt-head{flex-direction:column;gap:0}.bt-head b{font-size:16px}
+ .war-opp{font-size:14px}
+}
+
+.mrow .wr{margin-left:auto;flex:none;display:flex;flex-direction:column;align-items:flex-end;line-height:1.25;white-space:nowrap}.mrow .wr b{color:#2b6cb0;font-size:1.05em}.mrow .wr small{font-weight:400;color:#777;font-size:.78em}.mrow .wr.none{color:#aaa;font-size:.85em}
