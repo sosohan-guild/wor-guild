@@ -1,6 +1,6 @@
 (function(){
 var S = window.SITE || {};
-S.categories = S.categories || []; S.posts = S.posts || []; S.tlock = S.tlock || []; S.settings = S.settings || {};
+S.categories = S.categories || []; S.posts = S.posts || []; S.tlock = S.tlock || []; S.auth = S.auth || []; S.me = null; S.settings = S.settings || {};
 S.members = S.members || []; S.contents = S.contents || []; S.heroes = S.heroes || [];
 S.schema = S.schema || {}; S.schema.grades = S.schema.grades || []; S.schema.checks = S.schema.checks || []; S.schema.badges = S.schema.badges || [];
 var st = S.settings;
@@ -55,25 +55,59 @@ async function decryptWith(key, b64){
   var pt = await crypto.subtle.decrypt({name:'AES-GCM', iv: buf.slice(0,12)}, key, buf.slice(12));
   return JSON.parse(new TextDecoder().decode(pt));
 }
-async function tryUnlock(pass){
-  if(!S.crypto) return false;
-  if(!(window.crypto && crypto.subtle)) throw new Error('nosubtle');
+var KEYS = {};   // 등급 id -> 풀 수 있는 열쇠(개인 암호로 로그인했을 때)
+function normPass(s){ return String(s||'').toLowerCase().replace(/[\s-]/g,''); }
+function importRaw(b64){ return crypto.subtle.importKey('raw', fromB64(b64), {name:'AES-GCM'}, false, ['decrypt']); }
+async function pbkdfKey(pass, saltB64){
   var base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
-  var key = await crypto.subtle.deriveKey({name:'PBKDF2', salt: fromB64(S.crypto.salt), iterations: S.crypto.iterations, hash:'SHA-256'}, base, {name:'AES-GCM', length:256}, false, ['decrypt']);
-  try { await decryptWith(key, S.crypto.check); } catch(e){ return false; }
+  return crypto.subtle.deriveKey({name:'PBKDF2', salt: fromB64(saltB64), iterations: S.crypto.iterations, hash:'SHA-256'}, base, {name:'AES-GCM', length:256}, false, ['decrypt']);
+}
+async function finishUnlock(key, keys, me){
   for(var i=0;i<S.members.length;i++){ var m = S.members[i]; if(m.enc) m.priv = await decryptWith(key, m.enc); }
   if(S.scout) S.scoutData = await decryptWith(key, S.scout);
   if(S.rank) S.rankData = await decryptWith(key, S.rank);
   if(S.warRank) S.warRankData = await decryptWith(key, S.warRank);
-  if(S.tpriv) S.tprivData = await decryptWith(key, S.tpriv);
-  KEY = key; UNLOCKED = true; return true;
+  S.tprivData = [];
+  if(S.tpriv){
+    var first = S.schema.grades[0].id;
+    for(var gid in S.tpriv){ var kk = (gid === first) ? key : (keys||{})[gid]; if(!kk) continue; try{ S.tprivData = S.tprivData.concat(await decryptWith(kk, S.tpriv[gid])); }catch(e){} }
+  }
+  KEY = key; KEYS = keys || {}; S.me = me || null; UNLOCKED = true;
+  await openPriv();
+  return true;
 }
-function meId(){ try{ return localStorage.getItem('gw_me') || ''; }catch(e){ return ''; } }
-function meMember(){ var id = meId(); return S.members.filter(function(m){ return m.id === id; })[0] || null; }
-function meSelect(){
-  var cur = meId(), mains = S.members.filter(function(m){ return mainOf(m) === m; }).sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); });
-  return '<select id="meSel"><option value="">닉네임 선택</option>'+mains.map(function(m){ return '<option value="'+esc(m.id)+'"'+(m.id===cur?' selected':'')+'>'+esc(m.name)+'</option>'; }).join('')+'</select>';
+/* 개인 비공개 화면(육성 가이드, 길드전 정보): 본인(개인 암호 꾸러미의 mks) 또는 본인보다 높은 등급(wrap을 푸는 열쇠)만 열린다. 같은 등급은 못 연다 */
+async function openPriv(){
+  var me = S.me, real = -1, test = false;
+  if(me){ var mm0 = meMember(); real = mm0 ? gradeIdx(mm0) : 0; test = !!(me.admin && admOff()); }
+  for(var i=0;i<S.members.length;i++){
+    var m = S.members[i]; delete m.priv2; delete m.k2; if(!m.enc2) continue;
+    var k = null;
+    try{
+      if(me && me.mks && me.mks[m.id] && !(test && mainOf(m).id !== me.id)) k = me.mks[m.id];
+      else if(me && m.wg && m.wrap && KEYS[m.wg] && (!test || gradeIdOf(m.wg) <= real)) k = await decryptWith(KEYS[m.wg], m.wrap);
+      if(k){ var ck2 = await importRaw(k); m.priv2 = await decryptWith(ck2, m.enc2); m.k2 = ck2; }
+    }catch(e){}
+  }
 }
+async function tryUnlock(pass){            // 공용 암호: 누구인지는 알 수 없고 기본 등급(첫 등급) 자료만 열린다
+  if(!S.crypto) return false;
+  if(!(window.crypto && crypto.subtle)) throw new Error('nosubtle');
+  var key = await pbkdfKey(pass, S.crypto.salt);
+  try { await decryptWith(key, S.crypto.check); } catch(e){ return false; }
+  return finishUnlock(key, {}, null);
+}
+async function tryLogin(id, pass){         // 개인 암호: 닉네임과 암호가 맞아야 내 등급까지의 열쇠가 풀린다
+  if(!S.crypto) return false;
+  if(!(window.crypto && crypto.subtle)) throw new Error('nosubtle');
+  var a = S.auth.filter(function(x){ return x.id === id; })[0]; if(!a) return false;
+  var w; try{ w = await decryptWith(await pbkdfKey(normPass(pass), a.salt), a.enc); }catch(e){ return false; }
+  var keys = {}; for(var gid in w.keys){ keys[gid] = await importRaw(w.keys[gid]); }
+  var first = S.schema.grades[0].id;
+  try { await decryptWith(keys[first], S.crypto.check); } catch(e){ return false; }
+  return finishUnlock(keys[first], keys, {id:w.id, name:w.name, g:w.g, admin:!!w.admin, mks:w.mks||{}});
+}
+function meMember(){ return S.me ? (S.members.filter(function(m){ return m.id === S.me.id; })[0] || null) : null; }
 function gradeIdOf(id){ for(var i=0;i<S.schema.grades.length;i++){ if(S.schema.grades[i].id===id) return i; } return 0; }
 function nextHint(m){
   var gi = gradeIdx(m), nxt = S.schema.grades[gi+1], gm = mainOf(m);
@@ -84,21 +118,35 @@ function nextHint(m){
     if(nxt.minBadges && (gm.badges||[]).length < nxt.minBadges) parts.push('배지 '+(nxt.minBadges-(gm.badges||[]).length)+'개'); }
   return '다음 등급 <b style="color:'+esc(nxt.color)+'">'+esc(nxt.name)+'</b>까지: '+(parts.join(', ')||'조건 달성');
 }
-/* 등급 제한 확인: 통과면 null, 아니면 안내 HTML. 접속자를 알 수 없어서 '내 닉네임'을 직접 고르게 한다(안내용이며 보안 장치는 아님) */
-function gradeGate(minId){
-  if(!minId) return null;
+function isAdmin(m){ return !!(m && S.me && S.me.admin && m.id === S.me.id); }
+function admOff(){ try{ return localStorage.getItem('gw_admin_off') === '1'; }catch(e){ return false; } }
+/* 등급 제한 글을 못 여는 이유 안내(열쇠가 없으니 본문은 어차피 풀리지 않는다) */
+function lockNote(minId){
   var need = gradeIdOf(minId), ng = S.schema.grades[need] || {name:minId, color:'#888'};
+  var head = '이 글은 <b style="color:'+esc(ng.color)+'">'+esc(ng.name)+'</b> 등급부터 볼 수 있어요.';
+  if(!UNLOCKED) return '<p class="next">🔒 길드원 암호를 입력하면 볼 수 있습니다. ('+esc(ng.name)+' 등급부터)</p>';
   var me = meMember();
-  if(!me) return '<p class="next">이 글은 <b style="color:'+esc(ng.color)+'">'+esc(ng.name)+'</b> 등급부터 볼 수 있어요. 내 등급을 확인하려면 닉네임을 먼저 골라 주세요.</p><div class="lrow">'+meSelect()+'</div>';
-  var gi = gradeIdx(me);
-  if(gi >= need) return null;
-  var cg = S.schema.grades[gi] || {name:'', color:'#888'};
-  return '<p class="next">이 글은 <b style="color:'+esc(ng.color)+'">'+esc(ng.name)+'</b> 등급부터 볼 수 있어요. '+esc(me.name)+'님은 지금 <b style="color:'+esc(cg.color)+'">'+esc(cg.name)+'</b>이에요.</p><p class="next">'+nextHint(me)+'</p><p class="next"><a href="#/m/'+esc(me.id)+'">내 승급 조건 보기 ▶</a> · 다른 사람이면 <span class="meinl">'+meSelect()+'</span></p>';
+  if(!me) return '<p class="next">'+head+' 닉네임을 고르고 <b>개인 암호</b>로 로그인하면 내 등급을 확인해 드려요.</p>';
+  var gi = gradeIdx(me), cg = S.schema.grades[gi] || {name:'', color:'#888'};
+  var back = (isAdmin(me) && admOff()) ? '<p class="next"><small>제작자 시험 보기 중입니다. <a href="#" id="admOn">제작자 권한으로 돌아가기</a></small></p>' : '';
+  return back+'<p class="next">'+head+' '+esc(me.name)+'님은 지금 <b style="color:'+esc(cg.color)+'">'+esc(cg.name)+'</b>이에요.</p><p class="next">'+nextHint(me)+'</p><p class="next"><a href="#/m/'+esc(me.id)+'">내 승급 조건 보기 ▶</a></p>';
 }
+function visibleTpriv(){                   // 풀린 글. 제작자 시험 보기 중이면 내 실제 등급까지의 글만
+  var arr = S.tprivData || [], me = meMember();
+  if(me && isAdmin(me) && admOff()){ var gi = gradeIdx(me); arr = arr.filter(function(p){ return !p.minGrade || gradeIdOf(p.minGrade) <= gi; }); }
+  return arr;
+}
+function adminNote(p){ return (p.minGrade && isAdmin(meMember()) && !admOff()) ? '<p class="next"><small>제작자 권한으로 열람 중이에요. ('+esc((S.schema.grades[gradeIdOf(p.minGrade)]||{}).name||'')+' 등급 미만에게는 잠겨 있어요) <a href="#" id="admOff">등급 제한 시험 보기</a></small></p>' : ''; }
 function lockBar(){
   if(!S.crypto) return '';
-  if(UNLOCKED) return '<div class="lockbar ok">🔓 인증 길드원 정보 열람 중 <a href="#" id="relock">잠그기</a><span class="meinl"> · 내 닉네임 '+meSelect()+'</span></div>';
-  return '<div class="lockbar"><b>🔒 인증 길드원 전용 정보가 있습니다</b><div class="lrow"><input id="pw" type="password" placeholder="길드원 암호" autocomplete="off"><button id="pwbtn">확인</button></div><div class="err" id="pwerr"></div></div>';
+  if(UNLOCKED){
+    var me = S.me, who;
+    if(me){ var m = meMember(), g = m ? (S.schema.grades[gradeIdx(m)]||{}) : {}; who = '🔓 <b>'+esc(me.name)+'</b>님 로그인'+(g.name?' · '+esc(g.name):'')+(me.admin?' · 제작자':''); }
+    else who = '🔓 공용 암호로 열람 중 <small>(등급별 글은 개인 암호 로그인이 필요해요)</small>';
+    return '<div class="lockbar ok">'+who+' <a href="#" id="relock">'+(me?'로그아웃':'잠그기')+'</a></div>';
+  }
+  var opts = S.auth.slice().sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); }).map(function(a){ return '<option value="'+esc(a.id)+'">'+esc(a.name)+'</option>'; }).join('');
+  return '<div class="lockbar"><b>🔒 인증 길드원 전용 정보가 있습니다</b><div class="lrow"><select id="who"><option value="">공용 암호로 입장</option>'+opts+'</select></div><div class="lrow"><input id="pw" type="password" placeholder="암호" autocomplete="off"><button id="pwbtn">확인</button></div><small class="hint2">내 닉네임을 고르고 <b>개인 암호</b>를 입력하면 내 등급의 글까지 열려요.</small><div class="err" id="pwerr"></div></div>';
 }
 
 /* ---------- 길드원 등급 계산 ---------- */
@@ -186,17 +234,15 @@ function catPage(id){
   if(kids.length){ h += '<div class="grid">'; kids.forEach(function(k){ h += tileHtml(k); }); h += '</div>'; }
   if(c.layout==='cards'){
     // 카드형: 새 카드가 맨 위, 기존 카드는 아래로 내려간다(글은 날짜 내림차순)
-    var all = posts.slice(), lockedAny = false;
-    if(S.tprivData) S.tprivData.filter(function(p){return p.cat===id;}).forEach(function(p){ all.push(p); });
-    else S.tlock.filter(function(p){return p.cat===id;}).forEach(function(p){ all.push({id:p.id, title:p.title, date:p.date, locked:true}); lockedAny = true; });
+    var all = posts.slice(), openIds = {};
+    visibleTpriv().filter(function(p){return p.cat===id;}).forEach(function(p){ all.push(p); openIds[p.id] = 1; });
+    var tl = S.tlock.filter(function(p){return p.cat===id;});
+    tl.forEach(function(p){ if(!openIds[p.id]) all.push({id:p.id, title:p.title, date:p.date, minGrade:p.minGrade, locked:true}); });
     all.sort(function(a,b){ return String(b.date).localeCompare(String(a.date)); });
-    if(lockedAny) h += lockBar();
+    if(tl.length) h += lockBar();
     if(!all.length) h += '<div class="empty">아직 올라온 카드가 없습니다.</div>';
     all.forEach(function(p){
-      var body, gg = p.locked ? null : gradeGate(p.minGrade);
-      if(p.locked){ var ng = p.minGrade ? (S.schema.grades[gradeIdOf(p.minGrade)]||{}) : null; body = '<p class="next">🔒 길드원 암호를 입력하면 볼 수 있습니다.'+(ng&&ng.name?' ('+esc(ng.name)+' 등급부터)':'')+'</p>'; }
-      else if(gg) body = '<div class="gate">🔒 '+gg+'</div>';
-      else body = md(p.body);
+      var body = p.locked ? '<div class="gate">'+lockNote(p.minGrade)+'</div>' : adminNote(p)+md(p.body);
       h += '<article class="vcard"><h2>'+esc(p.title)+'</h2><div class="meta">'+esc(p.date)+'</div>'+body+'</article>';
     });
   } else if(posts.length || !kids.length){
@@ -274,17 +320,15 @@ function rankPage(){
 }
 
 function postPage(id){
-  var p = S.posts.filter(function(x){return x.id===id;})[0] || (S.tprivData||[]).filter(function(x){return x.id===id;})[0];
+  var p = S.posts.filter(function(x){return x.id===id;})[0] || visibleTpriv().filter(function(x){return x.id===id;})[0];
   if(!p){
     var lk = S.tlock.filter(function(x){return x.id===id;})[0];
-    if(lk){ titleEl.textContent = '길드원 훈련소'; backEl.hidden = false; backEl.href = '#/c/'+lk.cat; var lg = lk.minGrade ? (S.schema.grades[gradeIdOf(lk.minGrade)]||{}) : null; app.innerHTML = lockBar()+'<section class="locked"><h3>🔒 '+esc(lk.title)+'</h3><p class="next">길드원 암호를 입력하면 볼 수 있습니다.'+(lg&&lg.name?' ('+esc(lg.name)+' 등급부터 볼 수 있어요)':'')+'</p></section>'; return; }
+    if(lk){ titleEl.textContent = '길드원 훈련소'; backEl.hidden = false; backEl.href = '#/c/'+lk.cat; app.innerHTML = lockBar()+'<section class="locked"><h3>🔒 '+esc(lk.title)+'</h3>'+lockNote(lk.minGrade)+'</section>'; return; }
     location.hash='#/'; return;
   }
   var c = S.categories.filter(function(x){return x.id===p.cat;})[0];
   titleEl.textContent = c ? c.name : ''; backEl.hidden = false; backEl.href = '#/c/'+p.cat;
-  var gg = gradeGate(p.minGrade);
-  if(gg){ app.innerHTML = lockBar()+'<section class="locked"><h3>🔒 '+esc(p.title)+'</h3>'+gg+'</section>'; return; }
-  app.innerHTML = '<article><h1>'+esc(p.title)+'</h1><div class="meta">'+esc(p.date)+'</div>'+md(p.body)+'</article>';
+  app.innerHTML = adminNote(p)+'<article><h1>'+esc(p.title)+'</h1><div class="meta">'+esc(p.date)+'</div>'+md(p.body)+'</article>';
 }
 
 function membersPage(){
@@ -338,7 +382,7 @@ function openYt(id){
 }
 function closeYt(){ var o = document.getElementById('ytmodal'); if(o) o.remove(); document.body.classList.remove('ytopen'); }
 document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeYt(); });
-document.addEventListener('change',function(e){ if(e.target && e.target.id==='meSel'){ try{ if(e.target.value) localStorage.setItem('gw_me', e.target.value); else localStorage.removeItem('gw_me'); }catch(x){} route(); } });
+document.addEventListener('click',function(e){ var id = e.target && e.target.id; if(id==='admOff'||id==='admOn'){ e.preventDefault(); try{ if(id==='admOff') localStorage.setItem('gw_admin_off','1'); else localStorage.removeItem('gw_admin_off'); }catch(x){} openPriv().then(route); } });
 document.addEventListener('click', function(e){ var b = e.target.closest && e.target.closest('[data-yt]'); if(b){ e.preventDefault(); openYt(b.getAttribute('data-yt')); } });
 function battleHtml(b){
   var A = b.attack||{}, D = b.defense||{}, c = b.contrib||{}, s = b.season||{};
@@ -416,9 +460,21 @@ function growthHtml(gr){
   h += '<div class="pcard"><div class="pic">'+iconHtml(memberIcon(m))+'</div><div>'+nameHtml(m)+'<div class="pmeta"><span class="gbadge" style="background:'+esc(g.color)+'">'+esc(g.name)+'</span> '+esc(LEAD[m.role]?m.role:'길드원')+(m.joined?' · 가입 '+esc(m.joined):'')+(person&&gm!==m?' · 등급은 대표 계정 <b>'+esc(gm.name)+'</b> 기준':'')+'</div></div></div>';
 
   if(!locked && data.cardsFile) h += '<section><div class="sechead"><h3>귀속 병사 순위</h3>'+(S.rank?'<a class="rkbtn" href="#/rank">순위 보기 ▶</a>':'')+'</div><div id="profbox"></div><div class="cardgrid" id="cardgrid"><p class="next">카드를 불러오는 중…</p></div></section>';
-  if(!locked && data.defenseFile) h += '<section><div class="sechead"><h3>방어 카드</h3></div><div id="defbox"><p class="next">카드를 불러오는 중…</p></div></section>';
+
   var gmi = 1; if(S.schema.growth && S.schema.growth.minGrade){ for(var gk=0; gk<S.schema.grades.length; gk++){ if(S.schema.grades[gk].id===S.schema.growth.minGrade){ gmi = gk; break; } } }
-  if(!locked && data.growth && gi >= gmi) h += growthHtml(data.growth);
+  /* 개인 비공개 화면(육성 가이드, 길드전 정보): 본인 + 더 높은 등급만(openPriv가 푸는 것). 등급 조건은 이 화면이 열리는 최소 등급(일반)을 넘어야 한다 */
+  var data2 = (!locked && m.priv2) ? m.priv2 : null, admAll = !!(S.me && S.me.admin && !admOff());
+  var PSC = S.schema.privateScreens || {}, PSCC = PSC.contents || {};
+  var selfView = !!(S.me && mainOf(m).id === S.me.id);   // 본인 화면은 본인 등급이 열리는 최소 등급 이상일 때만, 남의 화면은 열쇠(더 높은 등급)가 정한다
+  function psOpen(gid){ return !selfView || gi >= gradeIdOf(gid || (S.schema.grades[1]||{}).id); }
+  var defOpen = !!(data2 && data2.defenseFile && (psOpen(PSC.defense || PSCC.guildwar) || admAll));
+  if(defOpen) h += '<section><div class="sechead"><h3>방어 카드</h3></div><div id="defbox"><p class="next">카드를 불러오는 중…</p></div></section>';
+  var growOpen = !!(data2 && data2.growth && (psOpen(PSC.growth) || admAll));
+  if(growOpen){ if(!psOpen(PSC.growth)) h += '<p class="next"><small>제작자 권한으로 열람 중이에요. 이 길드원은 아직 일반 미만이라 본인에게는 열리지 않아요.</small></p>'; h += growthHtml(data2.growth); }
+  var privNote = '';
+  if(m.enc2 && !m.priv2 && UNLOCKED) privNote = '<section class="locked"><h3>🔒 육성 가이드·길드전 정보</h3><p class="next">이 화면은 본인과 더 높은 등급만 볼 수 있어요.</p></section>';
+  else if(S.me && S.me.id === m.id && !admAll && gi < gradeIdOf(PSC.growth || (S.schema.grades[1]||{}).id)) privNote = '<section class="locked"><h3>🔒 육성 가이드·길드전 정보</h3><p class="next">일반 등급부터 열려요. '+nextHint(m)+'</p></section>';
+  h += privNote;
   h += '<section><h3>인증 현황</h3>';
   for(var si=1; si<S.schema.grades.length; si++){        // 계단식: 지금 도전 중인 단계까지만 보여 준다
     var sg = S.schema.grades[si]; if(!sg.requires) break;
@@ -466,7 +522,8 @@ function growthHtml(gr){
     S.contents.forEach(function(ct){
       var req = ct.required||[], rec = ct.recommended||[];
       var have = req.filter(function(x){return owned[x];}).length;
-      var recs = (data.records||[]).filter(function(r){return r.content===ct.id;});
+      var recAll = (data.records||[]); if(data2 && data2.records && (psOpen(PSCC[ct.id]) || admAll)) recAll = recAll.concat(data2.records);
+      var recs = recAll.filter(function(r){return r.content===ct.id;});
       if(!req.length && !rec.length && !recs.length) return;
       h += '<section><h3>'+iconHtml(ct.icon||'')+' '+esc(ct.name)+(req.length?' <small>필수 영웅 '+have+' / '+req.length+'</small>':'')+'</h3>';
       if(req.length){ h += '<div class="lbl">필수</div><div class="hgrid">'; req.forEach(function(x){ h += heroTile(x, !!owned[x]); }); h += '</div>'; }
@@ -485,7 +542,7 @@ function growthHtml(gr){
   }
   app.innerHTML = h;
   if(!locked && data.cardsFile) loadCards(data.cardsFile, hero);
-  if(!locked && data.defenseFile) loadDefense(data.defenseFile);
+  if(defOpen) loadDefense(data2.defenseFile, m.k2);
 }
 
 /* 귀속 병사 순위 카드 + 프로필 이미지(일반 등급 이상): 길드원별 암호화 파일을 열어 받는다(개인 페이지를 열 때만) */
@@ -509,10 +566,10 @@ var cl = CARDS[file].cards.slice();
 
 /* 방어 카드(주둔 팀 2개): 길드원별 암호화 파일을 열어 받는다. 초상화를 누르면 영웅 카드·능력치·장비 팝업이 열린다 */
 var DEFS = {};
-async function loadDefense(file){
+async function loadDefense(file, k2){
   var box = document.getElementById('defbox'); if(!box) return;
   try {
-    if(!DEFS[file]){ var r = await fetch(file); if(!r.ok) throw new Error(r.status); DEFS[file] = await decryptWith(KEY, (await r.text()).trim()); }
+    if(!DEFS[file]){ var r = await fetch(file); if(!r.ok) throw new Error(r.status); DEFS[file] = await decryptWith(k2, (await r.text()).trim()); }
     renderDefense(DEFS[file]);
   } catch(e){ box = document.getElementById('defbox'); if(box) box.innerHTML = '<p class="next">방어 카드를 불러오지 못했습니다.</p>'; }
 }
@@ -599,13 +656,20 @@ function route(){
 window.addEventListener('hashchange', route);
 
 async function doUnlock(){
-  var inp = document.getElementById('pw'), err = document.getElementById('pwerr');
+  var inp = document.getElementById('pw'), err = document.getElementById('pwerr'), who = document.getElementById('who');
   if(!inp) return;
   err.textContent = '확인 중...';
   try{
-    var ok = await tryUnlock(inp.value.trim());
-    if(ok){ try{ localStorage.setItem('gw_pass', inp.value.trim()); }catch(e){} route(); }
-    else err.textContent = '암호가 맞지 않습니다.';
+    var pass = inp.value.trim(), id = who ? who.value : '';
+    if(id){
+      var ok = await tryLogin(id, pass);
+      if(ok){ try{ localStorage.setItem('gw_login', JSON.stringify({id:id, pass:pass})); localStorage.removeItem('gw_pass'); }catch(e){} route(); }
+      else err.textContent = '닉네임이나 개인 암호가 맞지 않습니다.';
+    } else {
+      var ok2 = await tryUnlock(pass);
+      if(ok2){ try{ localStorage.setItem('gw_pass', pass); localStorage.removeItem('gw_login'); }catch(e){} route(); }
+      else err.textContent = '암호가 맞지 않습니다. (개인 암호는 닉네임을 먼저 고르세요)';
+    }
   }catch(e){ err.textContent = '이 브라우저에서는 암호 확인을 지원하지 않습니다. 다른 브라우저로 열어 주세요.'; }
 }
 var lb = document.getElementById('lightbox');
@@ -620,15 +684,16 @@ document.addEventListener('click', function(e){
   var bk = t.closest ? t.closest('#back') : null;
   if(bk && NAV.length >= 2){ e.preventDefault(); history.back(); return; }   // 사이트 안에서 이동해 왔으면 바로 이전 화면으로
   if(t.id === 'pwbtn'){ doUnlock(); return; }
-  if(t.id === 'relock'){ e.preventDefault(); try{ localStorage.removeItem('gw_pass'); }catch(x){} UNLOCKED = false; KEY = null; CARDS = {}; S.scoutData = null; S.rankData = null; S.warRankData = null; S.tprivData = null; S.members.forEach(function(m){ delete m.priv; }); route(); return; }
+  if(t.id === 'relock'){ e.preventDefault(); try{ localStorage.removeItem('gw_pass'); localStorage.removeItem('gw_login'); }catch(x){} UNLOCKED = false; KEY = null; KEYS = {}; S.me = null; CARDS = {}; S.scoutData = null; S.rankData = null; S.warRankData = null; S.tprivData = null; S.members.forEach(function(m){ delete m.priv; delete m.priv2; delete m.k2; }); route(); return; }
   if(t.tagName==='IMG' && (t.closest('article') || t.classList.contains('hcard') || t.classList.contains('gimg') || t.classList.contains('pimg'))){ lb.querySelector('img').src = t.src; lb.hidden = false; }
   else if(!lb.hidden){ lb.hidden = true; }
 });
 document.addEventListener('keydown', function(e){ if(e.key==='Enter' && e.target.id==='pw') doUnlock(); });
 
 (async function init(){
-  var saved = null; try{ saved = localStorage.getItem('gw_pass'); }catch(e){}
-  if(saved && S.crypto){ try{ await tryUnlock(saved); }catch(e){} }
+  var saved = null, lg = null; try{ saved = localStorage.getItem('gw_pass'); lg = JSON.parse(localStorage.getItem('gw_login') || 'null'); }catch(e){}
+  if(lg && S.crypto){ try{ await tryLogin(lg.id, lg.pass); }catch(e){} }
+  else if(saved && S.crypto){ try{ await tryUnlock(saved); }catch(e){} }
   route();
 })();
 /* 마법병사 유닛 설명 팝업 (2026-11-19): 초상화/이름 클릭 -> 특성, 스킬, 훈련소 가이드 경로(가이드가 있는 유닛만) */
