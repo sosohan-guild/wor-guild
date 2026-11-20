@@ -126,7 +126,7 @@ function lockNote(minId){
   var head = '이 글은 <b style="color:'+esc(ng.color)+'">'+esc(ng.name)+'</b> 등급부터 볼 수 있어요.';
   if(!UNLOCKED) return '<p class="next">🔒 길드원 암호를 입력하면 볼 수 있습니다. ('+esc(ng.name)+' 등급부터)</p>';
   var me = meMember();
-  if(!me) return '<p class="next">'+head+' 닉네임을 고르고 <b>개인 암호</b>로 로그인하면 내 등급을 확인해 드려요.</p>';
+  if(!me) return '<p class="next">'+head+' 받은 <b>개인 암호</b>를 입력하면 내 등급을 확인해 드려요.</p>';
   var gi = gradeIdx(me), cg = S.schema.grades[gi] || {name:'', color:'#888'};
   var back = (isAdmin(me) && admOff()) ? '<p class="next"><small>제작자 시험 보기 중입니다. <a href="#" id="admOn">제작자 권한으로 돌아가기</a></small></p>' : '';
   return back+'<p class="next">'+head+' '+esc(me.name)+'님은 지금 <b style="color:'+esc(cg.color)+'">'+esc(cg.name)+'</b>이에요.</p><p class="next">'+nextHint(me)+'</p><p class="next"><a href="#/m/'+esc(me.id)+'">내 승급 조건 보기 ▶</a></p>';
@@ -145,8 +145,7 @@ function lockBar(){
     else who = '🔓 공용 암호로 열람 중 <small>(등급별 글은 개인 암호 로그인이 필요해요)</small>';
     return '<div class="lockbar ok">'+who+' <a href="#" id="relock">'+(me?'로그아웃':'잠그기')+'</a></div>';
   }
-  var opts = S.auth.slice().sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); }).map(function(a){ return '<option value="'+esc(a.id)+'">'+esc(a.name)+'</option>'; }).join('');
-  return '<div class="lockbar"><b>🔒 인증 길드원 전용 정보가 있습니다</b><div class="lrow"><select id="who"><option value="">공용 암호로 입장</option>'+opts+'</select></div><div class="lrow"><input id="pw" type="password" placeholder="암호" autocomplete="off"><button id="pwbtn">확인</button></div><small class="hint2">내 닉네임을 고르고 <b>개인 암호</b>를 입력하면 내 등급의 글까지 열려요.</small><div class="err" id="pwerr"></div></div>';
+  return '<div class="lockbar"><b>🔒 인증 길드원 전용 정보가 있습니다</b><div class="lrow"><input id="pw" type="password" placeholder="받은 암호" autocomplete="off"><button id="pwbtn">확인</button></div><small class="hint2">받은 <b>개인 암호</b>만 입력하면 누구인지 자동으로 찾아 내 등급에 맞는 화면이 열려요.</small><div class="err" id="pwerr"></div></div>';
 }
 
 /* ---------- 길드원 등급 계산 ---------- */
@@ -656,19 +655,24 @@ function route(){
 window.addEventListener('hashchange', route);
 
 async function doUnlock(){
-  var inp = document.getElementById('pw'), err = document.getElementById('pwerr'), who = document.getElementById('who');
+  var inp = document.getElementById('pw'), err = document.getElementById('pwerr');
   if(!inp) return;
   err.textContent = '확인 중...';
   try{
-    var pass = inp.value.trim(), id = who ? who.value : '';
-    if(id){
-      var ok = await tryLogin(id, pass);
-      if(ok){ try{ localStorage.setItem('gw_login', JSON.stringify({id:id, pass:pass})); localStorage.removeItem('gw_pass'); }catch(e){} route(); }
-      else err.textContent = '닉네임이나 개인 암호가 맞지 않습니다.';
-    } else {
+    var pass = inp.value.trim();
+    /* 암호만으로 누구인지 찾는다: 암호 앞 3글자의 해시 태그(t)로 후보 항목을 좋히고, 풀리는 항목이 본인이다. 어느 개인 암호도 아니면 공용 암호(기존 방식)로 시도 */
+    var norm = normPass(pass), found = null;
+    if(norm.length >= 3 && S.auth.length){
+      var dg = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('tag|'+norm.slice(0,3))));
+      var tag = ''; for(var di=0; di<4; di++){ tag += ('0'+dg[di].toString(16)).slice(-2); }
+      var cands = S.auth.filter(function(a){ return a.t === tag; });
+      for(var ci=0; ci<cands.length && !found; ci++){ if(await tryLogin(cands[ci].id, pass)) found = cands[ci].id; }
+    }
+    if(found){ try{ localStorage.setItem('gw_login', JSON.stringify({id:found, pass:pass})); localStorage.removeItem('gw_pass'); }catch(e){} route(); }
+    else {
       var ok2 = await tryUnlock(pass);
       if(ok2){ try{ localStorage.setItem('gw_pass', pass); localStorage.removeItem('gw_login'); }catch(e){} route(); }
-      else err.textContent = '암호가 맞지 않습니다. (개인 암호는 닉네임을 먼저 고르세요)';
+      else err.textContent = '암호가 맞지 않습니다. 받은 암호를 다시 확인해 주세요.';
     }
   }catch(e){ err.textContent = '이 브라우저에서는 암호 확인을 지원하지 않습니다. 다른 브라우저로 열어 주세요.'; }
 }
