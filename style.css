@@ -270,3 +270,5 @@ body.ytopen{overflow:hidden}
 .acc summary small{color:#7a869a;font-weight:normal;white-space:nowrap}
 .acc[open] summary{border-bottom:1px solid #0001}
 .acc .accb{padding:6px 16px 16px}
+.accb img{max-width:100%;height:auto;border-radius:8px;display:block;margin:10px 0;cursor:zoom-in}
+.accb .clip img.clipimg{margin:0;border-radius:0;cursor:pointer}
