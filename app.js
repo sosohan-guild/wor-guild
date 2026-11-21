@@ -245,8 +245,9 @@ function catPage(id){
   var kids = S.categories.filter(function(x){return x.parent===id;});
   var posts = S.posts.filter(function(p){return p.cat===id;});
   var h = '';
+  if(c.desc) h += '<p class="sub">'+esc(c.desc)+'</p>';
   if(kids.length){ h += '<div class="grid">'; kids.forEach(function(k){ h += tileHtml(k); }); h += '</div>'; }
-  if(c.layout==='cards'){
+  if(c.layout==='cards' || c.layout==='acc'){
     // 카드형: 새 카드가 맨 위, 기존 카드는 아래로 내려간다(글은 날짜 내림차순)
     var all = posts.slice(), openIds = {};
     visibleTpriv().filter(function(p){return p.cat===id;}).forEach(function(p){ all.push(p); openIds[p.id] = 1; });
@@ -257,7 +258,9 @@ function catPage(id){
     if(!all.length) h += '<div class="empty">아직 올라온 카드가 없습니다.</div>';
     all.forEach(function(p){
       var body = p.locked ? '<div class="gate">'+lockNote(p.minGrade)+'</div>' : adminNote(p)+md(p.body);
-      h += '<article class="vcard"><h2>'+esc(p.title)+'</h2><div class="meta">'+esc(p.date)+'</div>'+body+'</article>';
+      if(c.layout==='acc'){   // 제목 목록: 제목을 누르면 내용이 펼쳐진다
+        h += '<details class="acc"><summary><span class="at">'+(p.locked?'🔒 ':'')+esc(p.title)+'</span><small>'+esc(String(p.date||'').slice(0,10))+'</small></summary><div class="accb">'+body+'</div></details>';
+      } else h += '<article class="vcard"><h2>'+esc(p.title)+'</h2><div class="meta">'+esc(p.date)+'</div>'+body+'</article>';
     });
   } else if(posts.length || !kids.length){
     h += '<div class="list">';
