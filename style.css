@@ -29,6 +29,14 @@ article a{color:#3558d6}
 .video{position:relative;padding-top:56.25%;margin:12px 0}
 .video iframe{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:8px}
 video{width:100%;border-radius:8px;margin:10px 0}
+/* 이미지를 누르면 그 자리에서 영상이 재생되는 카드 */
+.clip{position:relative;cursor:pointer;margin:10px 0;border-radius:8px;overflow:hidden;-webkit-tap-highlight-color:transparent}
+.clip img.clipimg{display:block;width:100%;height:auto;margin:0;border-radius:0;object-fit:initial}
+.clip .clip-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:72px;height:72px;border-radius:50%;background:rgba(0,0,0,.62);color:#fff;font-size:32px;line-height:72px;text-align:center;border:3px solid rgba(255,255,255,.85);padding-left:5px;box-sizing:border-box;transition:transform .15s}
+.clip:hover .clip-play,.clip:focus .clip-play{transform:translate(-50%,-50%) scale(1.1)}
+.clip[data-playing]{cursor:default;background:#000}
+.clip[data-playing] video{margin:0;display:block}
+.clip[data-playing] .video{margin:0}
 #foot{text-align:center;color:var(--sub);font-size:12px;padding:24px 0}
 #lightbox{position:fixed;inset:0;background:#000d;z-index:20;display:flex;align-items:center;justify-content:center;overflow:auto}
 #lightbox[hidden]{display:none}
