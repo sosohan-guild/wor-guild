@@ -707,7 +707,7 @@ document.addEventListener('click', function(e){
   if(bk && NAV.length >= 2){ e.preventDefault(); history.back(); return; }   // 사이트 안에서 이동해 왔으면 바로 이전 화면으로
   if(t.id === 'pwbtn'){ doUnlock(); return; }
   if(t.id === 'relock'){ e.preventDefault(); try{ localStorage.removeItem('gw_pass'); localStorage.removeItem('gw_login'); }catch(x){} UNLOCKED = false; KEY = null; KEYS = {}; S.me = null; CARDS = {}; S.scoutData = null; S.rankData = null; S.warRankData = null; S.tprivData = null; S.members.forEach(function(m){ delete m.priv; delete m.priv2; delete m.k2; }); route(); return; }
-  if(t.tagName==='IMG' && (t.closest('article') || t.classList.contains('hcard') || t.classList.contains('gimg') || t.classList.contains('pimg'))){ lb.querySelector('img').src = t.src; lb.hidden = false; }
+  if(t.tagName==='IMG' && (t.closest('article') || t.closest('.accb') || t.classList.contains('hcard') || t.classList.contains('gimg') || t.classList.contains('pimg'))){ lb.querySelector('img').src = t.src; lb.hidden = false; }
   else if(!lb.hidden){ lb.hidden = true; }
 });
 document.addEventListener('keydown', function(e){ if(e.key==='Enter' && e.target.id==='pw') doUnlock(); });
