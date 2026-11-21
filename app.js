@@ -28,13 +28,14 @@ function inline(s){
 }
 function md(src){
   var lines = src.replace(/\r/g,'').split('\n'), out = [], list = false, para = [];
-  function flushP(){ if(para.length){ out.push('<p>'+inline(para.join('<br>'))+'</p>'); para=[]; } }
+  function flushP(){ if(para.length){ out.push('<p>'+inline(para.join('\n')).replace(/\n/g,'<br>')+'</p>'); para=[]; } }
   function closeL(){ if(list){ out.push('</ul>'); list=false; } }
   lines.forEach(function(l){
     var m;
     if(!l.trim()){ flushP(); closeL(); return; }
     if((m=l.match(/^@youtube\(([\w-]+)\)/))){ flushP(); closeL(); out.push('<div class="video"><iframe src="https://www.youtube.com/embed/'+m[1]+'" allowfullscreen loading="lazy"></iframe></div>'); return; }
     if((m=l.match(/^@video\(([^)]+)\)/))){ flushP(); closeL(); out.push('<video controls playsinline preload="metadata" src="'+esc(m[1])+'"></video>'); return; }
+    if((m=l.match(/^@clip\(([^|)]+)\|([^)]+)\)/))){ flushP(); closeL(); out.push(clipHtml(m[1].trim(), m[2].trim(), '')); return; }   // @clip(이미지|영상경로 또는 yt:영상ID): 이미지를 누르면 그 자리에서 재생
     if((m=l.match(/^!\[([^\]]*)\]\(([^)]+)\)/))){ flushP(); closeL(); out.push('<img src="'+esc(m[2])+'" alt="'+esc(m[1])+'" loading="lazy">'); return; }
     if((m=l.match(/^(#{1,3})\s+(.*)/))){ flushP(); closeL(); var n=m[1].length+1; out.push('<h'+n+'>'+inline(m[2])+'</h'+n+'>'); return; }
     if((m=l.match(/^[-*]\s+(.*)/))){ flushP(); if(!list){ out.push('<ul>'); list=true; } out.push('<li>'+inline(m[1])+'</li>'); return; }
@@ -43,6 +44,20 @@ function md(src){
   flushP(); closeL();
   return out.join('\n');
 }
+/* 이미지 -> 누르면 그 자리에서 영상 재생. video: 'images/clips/x.mp4' 또는 'yt:영상ID' */
+function clipHtml(img, video, alt){
+  return '<div class="clip" role="button" tabindex="0" data-clip="'+esc(video)+'" title="눌러서 영상 재생"><img class="clipimg" loading="lazy" src="'+esc(img)+'" alt="'+esc(alt||'')+'"><span class="clip-play">▶</span></div>';
+}
+function playClip(box){
+  if(!box || box.getAttribute('data-playing')) return;
+  var v = box.getAttribute('data-clip') || '', im = box.querySelector('img'), hh = im ? im.offsetHeight : 0;
+  box.setAttribute('data-playing', '1'); box.removeAttribute('role'); box.removeAttribute('title');
+  if(hh) box.style.minHeight = hh + 'px';
+  if(v.indexOf('yt:') === 0) box.innerHTML = '<div class="video"><iframe src="https://www.youtube.com/embed/'+encodeURIComponent(v.slice(3))+'?autoplay=1&rel=0" allow="autoplay; fullscreen" allowfullscreen></iframe></div>';
+  else { box.innerHTML = '<video controls autoplay playsinline src="'+esc(v)+'"></video>'; var vd = box.querySelector('video'); if(vd && vd.play) vd.play().catch(function(){}); }
+}
+document.addEventListener('click', function(e){ var b = e.target.closest && e.target.closest('[data-clip]'); if(b){ e.preventDefault(); playClip(b); } });
+document.addEventListener('keydown', function(e){ if((e.key==='Enter'||e.key===' ') && e.target.getAttribute && e.target.getAttribute('data-clip') && !e.target.getAttribute('data-playing')){ e.preventDefault(); playClip(e.target); } });
 function iconHtml(ic){
   if(/^images\//.test(ic||'')) return '<img src="'+esc(ic)+'" alt="">';
   return esc(ic || '📁');
@@ -203,7 +218,7 @@ function tileHtml(c){
 function eventPage(c){
   var ev = (S.events||{})[c.id] || {}, h = '';
   (ev.guides||[]).forEach(function(g){
-    h += '<article class="vcard"><h2>'+esc(g.title||'')+'</h2>'+(g.note?'<p class="next">'+esc(g.note)+'</p>':'')+'<img class="gimg" loading="lazy" src="'+esc(g.image)+'" alt="'+esc(g.title||'')+'"></article>';
+    h += '<article class="vcard"><h2>'+esc(g.title||'')+'</h2>'+(g.note?'<p class="next">'+esc(g.note)+'</p>':'')+''+(g.video ? clipHtml(g.image, g.video, g.title||'') : '<img class="gimg" loading="lazy" src="'+esc(g.image)+'" alt="'+esc(g.title||'')+'">')+'</article>';
   });
   var rw = ev.rewards||{}, items = rw.items||[];
   h += '<article class="vcard"><h2>🎁 최종 보상</h2>';
