@@ -59,7 +59,7 @@ function playClip(box){
 document.addEventListener('click', function(e){ var b = e.target.closest && e.target.closest('[data-clip]'); if(b){ e.preventDefault(); playClip(b); } });
 document.addEventListener('keydown', function(e){ if((e.key==='Enter'||e.key===' ') && e.target.getAttribute && e.target.getAttribute('data-clip') && !e.target.getAttribute('data-playing')){ e.preventDefault(); playClip(e.target); } });
 function iconHtml(ic){
-  if(/^images\//.test(ic||'')) return '<img src="'+esc(ic)+'" alt="">';
+  if(/^images\//.test(ic||'')) return '<img'+(/portrait/.test(ic)?' class="pt"':'')+' src="'+esc(ic)+'" alt="">';
   return esc(ic || '📁');
 }
 
